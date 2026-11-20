@@ -7,17 +7,26 @@
   function multFor(combo) { const T = D.TUNING; return 1 + Math.min(1, combo / T.comboMaxHits) * (T.comboMaxMult - 1); }
 
   // ---------------------------------------------------------------- clicker
-  const ck = { combo: 0, last: 0, best: 0, carry: 0 };
+  const ck = { combo: 0, last: 0, best: 0, carry: 0, pausedAt: 0 };
+  // notifications (toasts, reward sheets) freeze the combo timer so they never cost you a combo
+  function setPaused(on) {
+    const now = performance.now();
+    if (on && !ck.pausedAt) ck.pausedAt = now;
+    else if (!on && ck.pausedAt) { ck.last += now - ck.pausedAt; ck.pausedAt = 0; }
+  }
+  const since = now => (ck.pausedAt || now) - ck.last;
+  // hold-to-tap (a $0.99 unlock): two taps a second while held, multiplier capped at 2.5x
+  const HOLD_MULT = 2.5;
   function credit(v) { ck.carry += v; const w = Math.floor(ck.carry); if (w > 0) { ST.addPucks(w); ck.carry -= w; } }
   // no human taps faster than ~16 a second: anything quicker (an autoclicker, a second finger) earns nothing
   const MIN_TAP_MS = 60;
-  function tap() {
+  function tap(held) {
     const now = performance.now();
-    if (now - ck.last < MIN_TAP_MS) return { v: 0, mult: multFor(ck.combo), combo: ck.combo };
-    if (now - ck.last > D.TUNING.comboDecayMs) ck.combo = 0;
-    ck.combo++; ck.last = now;
+    if (!held && now - ck.last < MIN_TAP_MS) return { v: 0, mult: multFor(ck.combo), combo: ck.combo };
+    if (since(now) > D.TUNING.comboDecayMs) ck.combo = 0;
+    ck.combo++; ck.last = now; if (ck.pausedAt) ck.pausedAt = now;
     if (ck.combo > ck.best) ck.best = ck.combo;
-    const mult = multFor(ck.combo), v = ST.clickValue() * mult;
+    const mult = held ? Math.min(HOLD_MULT, multFor(ck.combo)) : multFor(ck.combo), v = ST.clickValue() * mult;
     credit(v);
     if (ST.countTap) ST.countTap();
     if (ST.noteCombo) ST.noteCombo(ck.combo);
@@ -26,9 +35,9 @@
   function tapGolden() { const mult = multFor(ck.combo), v = 25 * ST.clickValue() * mult; credit(v); return { v }; }
   function clickState() {
     const now = performance.now();
-    const alive = ck.combo > 0 && now - ck.last <= D.TUNING.comboDecayMs;
+    const alive = ck.combo > 0 && since(now) <= D.TUNING.comboDecayMs;
     if (!alive) ck.combo = 0;
-    return { combo: ck.combo, mult: multFor(ck.combo), decay: alive ? 1 - (now - ck.last) / D.TUNING.comboDecayMs : 0 };
+    return { combo: ck.combo, mult: multFor(ck.combo), decay: alive ? 1 - since(now) / D.TUNING.comboDecayMs : 0, paused: !!ck.pausedAt };
   }
 
   // ---------------------------------------------------------------- shooting drill
@@ -188,7 +197,7 @@
   }
 
   G.PRACTICE = {
-    tap, tapGolden, clickState, multFor, start, stop,
+    tap, tapGolden, clickState, multFor, start, stop, setPaused, HOLD_MULT,
     get running() { return running; }, get clickBest() { return ck.best; }
   };
 })(window.BK = window.BK || {});

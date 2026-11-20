@@ -642,16 +642,17 @@
   // pucks into shards: a late-game sink that rises 10% per buy and resets each season
   function shardPrice() { return Math.round(900 * payout() * Math.pow(1.1, st.shardBuys || 0)); }
   function buyShards(pool) { const c = shardPrice(); if (st.pucks < c) return false; st.pucks -= c; st.shards[pool] += 5; st.shardBuys = (st.shardBuys || 0) + 1; save(); return true; }
-  const BREAK_MAX = 11, BREAK_STEP = 2;
+  // six breakthroughs of +3: the last one puts an Epic exactly on Legendary caps (base 78 + 18, capped at 95)
+  const BREAK_MAX = 6, BREAK_STEP = 3;
   function canBreak(p) { return !!p && p.rarity === 'epic' && (p.capB || 0) < BREAK_MAX * BREAK_STEP; }
-  function breakCost(p) { return Math.round((30 + 5 * (p.capB || 0)) * (p.pos === 'G' ? D.GOALIE_SHARD_MULT : 1)); }
+  function breakCost(p) { return Math.round((45 + 8 * (p.capB || 0)) * (p.pos === 'G' ? D.GOALIE_SHARD_MULT : 1)); }
   function breakthrough(playerId) {
     const p = byId(playerId);
     if (!canBreak(p)) return false;
     const pool = poolOf(p), cost = breakCost(p);
     if (st.shards[pool] < cost) return false;
     st.shards[pool] -= cost; p.capB = Math.min(BREAK_MAX * BREAK_STEP, (p.capB || 0) + BREAK_STEP);
-    toast(p.name + ': breakthrough ' + p.capB / BREAK_STEP + '/' + BREAK_MAX + '. Every cap +' + BREAK_STEP + '.', 'promo');
+    toast(p.name + ': breakthrough ' + p.capB / BREAK_STEP + '/' + BREAK_MAX + '. Caps raised' + (p.capB >= BREAK_MAX * BREAK_STEP ? ' to Legendary level.' : '.'), 'promo');
     save(); emit('roster'); return true;
   }
   // the $0.99 Legend upgrade: one Epic player you love becomes Legendary (demo build: no real charge)
@@ -1260,8 +1261,17 @@
     });
     // gear and promotions show on the Team page itself (Auto-equip button, player tiles), not on the tab
     out.gear = gearUp;
-    out.promo = {};
-    st.team.roster.forEach(p => { if ((canPromote(p) && st.shards[poolOf(p)] >= promoCost(p)) || (canBreak(p) && st.shards[poolOf(p)] >= breakCost(p))) out.promo[p.id] = 1; });
+    // per player, three separate markers: a better piece of gear in the locker, an attribute you can afford
+    // to train, a promotion or breakthrough you can afford
+    out.promo = {}; out.gearP = {}; out.train = {};
+    const bestBy = {};
+    st.gear.forEach(g => { const k = g.kind + '|' + g.slot; bestBy[k] = Math.max(bestBy[k] == null ? -1 : bestBy[k], M.gearValue(g)); });
+    st.team.roster.forEach(p => {
+      if ((canPromote(p) && st.shards[poolOf(p)] >= promoCost(p)) || (canBreak(p) && st.shards[poolOf(p)] >= breakCost(p))) out.promo[p.id] = 1;
+      const kind = p.pos === 'G' ? 'goalie' : 'skater';
+      if (D.GEAR_SLOTS[kind].some(s => { const b = bestBy[kind + '|' + s.k]; return b != null && (!p.gear[s.k] || b > M.gearValue(p.gear[s.k])); })) out.gearP[p.id] = 1;
+      if (Object.keys(p.a).some(k => p.a[k] < M.attrCap(p, k) && M.upgradeCost(p.a[k]) <= st.pucks)) out.train[p.id] = 1;
+    });
     out.store = pickCount();
     if (st.phase === 'playoffs' || st.phase === 'offseason') out.season = 1;
     out.trophies = (st.achClaim || []).length + (dailyState().ready ? 1 : 0) +
@@ -1273,7 +1283,7 @@
   const TAP_GOALS = [{ n: 200, s: 12 }, { n: 800, s: 30 }, { n: 2000, s: 40, pick: 5 }];
   function tapDay() { const d = new Date().toDateString(); if (!st.tapDay || st.tapDay.d !== d) st.tapDay = { d, n: 0, got: 0 }; return st.tapDay; }
   // after the daily goals, every 500 more taps drops something: gear, a late pick, pucks or shards, in turn
-  const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pucks', 'pick', 'shards'];
+  const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pick', 'shards'];   // no pucks: tapping already pays pucks
   function countTap(n) {
     if (!st) return;
     const t = tapDay();
@@ -1418,6 +1428,8 @@
       (st.shop || []).forEach(it => lv(it.g)); st.gearV2 = true;
       if (!st.coach.name) Object.assign(st.coach, makeCoach(), { bench: st.coach.bench, skills: st.coach.skills, video: st.coach.video });
       st.coach.style = st.coach.style || 'bal';
+      // breakthroughs went from 11 x +2 to 6 x +3: round old progress up to the new steps
+      st.team.roster.forEach(p => { if (p.capB) p.capB = Math.min(BREAK_MAX * BREAK_STEP, Math.ceil(p.capB / BREAK_STEP) * BREAK_STEP); });
       if (st.team.pattern === 'sash' || st.team.pattern === 'barber') st.team.pattern = 'double';   // retired patterns
       st.boosts = st.boosts || {}; st.active = st.active || []; st.achClaim = st.achClaim || [];
       if (st.pending && st.pending.kind === 'pick' && st.pending.options.some(o => !o.g && o.n == null && !o.xf && !o.k)) st.pending = buildPick(st.pending.title, st.pending.tier || 1);

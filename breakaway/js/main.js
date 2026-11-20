@@ -118,8 +118,18 @@
     const g = e.target.closest('.golden');
     if (g) { e.preventDefault(); UI.clickTap(e.clientX, e.clientY, true); return; }
     const pk = e.target.closest('#ckArena');
-    if (pk) { e.preventDefault(); UI.clickTap(e.clientX, e.clientY, false); }
+    if (pk) {
+      e.preventDefault(); UI.clickTap(e.clientX, e.clientY, false);
+      // hold-to-tap ($0.99 unlock): keep a finger down and it taps twice a second, multiplier capped at 2.5x
+      const st = ST.get();
+      if (st && st.holdTap) { stopHold(); hold = { x: e.clientX, y: e.clientY, t: setTimeout(() => { hold.i = setInterval(() => UI.clickTap(hold.x, hold.y, false, true), 500); UI.holdState(true); }, 450) }; }
+    }
   }
+  let hold = null;
+  function stopHold() { if (hold) { clearTimeout(hold.t); clearInterval(hold.i); hold = null; UI.holdState(false); } }
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => document.addEventListener(t, stopHold));
+  document.addEventListener('pointermove', e => { if (hold) { const ar = e.target.closest && e.target.closest('#ckArena'); if (ar) { hold.x = e.clientX; hold.y = e.clientY; } else stopHold(); } });
+  document.addEventListener('visibilitychange', stopHold);
 
   // ---------------------------------------------------------- events
   function onClick(e) {
@@ -264,6 +274,11 @@
     if ((x = el('[data-bringback]'))) {
       if (x.dataset.sure) { const sc = $('#sheet').scrollTop; if (ST.bringBack(x.dataset.bringback)) { UI.historySheet(); $('#sheet').scrollTop = sc; UI.render(); } }
       else { x.dataset.sure = '1'; x.textContent = 'Tap to confirm $0.99 (demo)'; }
+      return;
+    }
+    if ((x = el('[data-holdbuy]'))) {
+      if (x.dataset.sure) { st.holdTap = true; ST.save(); ST.toast('Hold to tap unlocked. Keep a finger on the ice.', 'gold'); UI.render(); }
+      else { x.dataset.sure = '1'; x.textContent = 'Confirm $0.99 (demo)'; }
       return;
     }
     if ((x = el('[data-legbuy]'))) {

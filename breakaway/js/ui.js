@@ -31,7 +31,7 @@
   let gtilePromo = null;
   function renderTeam() {
     const st = ST.get(), t = st.team, L = t.lineup;
-    gtilePromo = ST.alerts().promo;
+    gtilePromo = ST.alerts();
     const by = {}; t.roster.forEach(p => by[p.id] = p);
     const me = ST.teamById('me');
     let h = '';
@@ -97,11 +97,11 @@
   }
   function gtile(p, slot) {
     if (!p) return '<span class="gt empty"></span>';
-    const promo = !editMode && gtilePromo && gtilePromo[p.id];
+    const al = !editMode && gtilePromo, marks = al ? (al.gearP[p.id] ? '<i class="mk g" title="Better gear in the locker">' + ic('gear', 9) + '</i>' : '') + (al.train[p.id] ? '<i class="mk t" title="Can train an attribute">' + ic('up', 9) + '</i>' : '') + (al.promo[p.id] ? '<i class="mk r" title="Can promote or break through">' + ic('star', 9) + '</i>' : '') : '';
     const sel = selSwap === p.id, can = editMode && selSwap && !sel && ST.canSwap(selSwap, p.id);
     const off = ['LW', 'C', 'RW'].indexOf(slot) >= 0 && p.pos !== slot;
     return '<button class="gt' + (sel ? ' sel' : '') + (can ? ' can' : '') + (editMode && selSwap && !sel && !can ? ' dim' : '') + '" data-p="' + p.id + '">' +
-      (promo ? '<span class="gt-up" title="Can promote">' + ic('plus', 9) + '</span>' : '') + (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
+      (marks ? '<span class="gt-mk">' + marks + '</span>' : '') + (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
       '<span class="pt-face">' + A.portrait(p, team(), 44, rcol(p)) + ovr(p) + '</span>' +
       '<span class="gt-n">' + flag(p.nat, 12) + esc(last(p)) + '</span>' +
       '<span class="gt-m">' + typeTag(p) + gearMini(p) + '</span></button>';
@@ -132,7 +132,11 @@
     h += '<div class="note c">Team overall ' + Math.round(ST.teamOvr()) + ' sets tap and passive income. Upgrade players and both go up. A golden puck shows up now and then: tap it for 25 taps’ worth.</div>';
     h += sh(ic('net', 18) + ' Shooting Drill') + '<section class="panel drillcard"><div class="dc-ic">' + ic('net', 30) + '</div>' +
       '<div><b>30-second tarp round</b><i>Hectic: up to five lit holes. 3× per hit plus an accuracy bonus.</i></div>' +
-      '<button class="btn primary sm" data-act="drill">Play</button></section>';
+      '<button class="btn primary sm" data-act="drill">Play</button></section>' +
+      (st.holdTap
+        ? '<div class="note">' + ic('practice', 14) + ' <b>Hold to tap</b> is on: keep a finger on the ice and it taps twice a second, multiplier up to ' + P.HOLD_MULT + '×.</div>'
+        : '<section class="panel drillcard"><div class="dc-ic">' + ic('practice', 30) + '</div><div><b>Hold to tap</b><i>Keep a finger on the ice and it taps for you, twice a second. The multiplier tops out at ' + P.HOLD_MULT + '× while held.</i></div>' +
+          '<button class="btn sm gold" data-holdbuy="1">$0.99</button></section>');
     return h;
   }
 
@@ -142,7 +146,10 @@
     if (!goldenAt) goldenAt = performance.now() + 15000 + Math.random() * 15000;
     const frame = now => {
       if (tab !== 'train' || drillMode || !$('#ckPuck')) return;
+      // toasts and sheets freeze the combo timer while they are up
+      P.setPaused(modalOpen() || !!($('#toasts') && $('#toasts').children.length));
       const s = P.clickState();
+      if (holding) s.mult = Math.min(s.mult, P.HOLD_MULT);
       const c = $('#ckCombo'), m = $('#ckMult'), d = $('#ckDecay');
       if (c) { c.textContent = s.combo; m.textContent = s.mult.toFixed(1) + '×'; d.style.width = (s.decay * 100).toFixed(1) + '%'; m.parentNode.classList.toggle('hot', s.mult >= 3); }
       const ar = $('#ckArena');
@@ -162,15 +169,17 @@
   // daily practice goals under the clicker
   function goalHTML() {
     const t = ST.tapDay(), G = ST.TAP_GOALS, next = G[t.got], prev = t.got ? G[t.got - 1].n : 0;
-    if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, pucks, a pick or shards</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
+    if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, a pick or shards</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
     const pct = Math.min(100, 100 * (t.n - prev) / (next.n - prev));
     return '<div class="cg-h"><b>Practice goal ' + (t.got + 1) + '/' + G.length + ': ' + fmt(t.n) + ' / ' + fmt(next.n) + ' taps</b><i>+' + next.s + ' shards' + (next.pick ? ' + a ' + ST.ord(next.pick) + '-round pick' : '') + '</i></div>' +
       '<div class="cg-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
   }
-  function clickTap(x, y, isGolden) {
-    const ar = $('#ckArena'); if (!ar) return;
+  let holding = false;
+  function holdState(on) { holding = on; const ar = $('#ckArena'); if (ar) ar.classList.toggle('holding', on); }
+  function clickTap(x, y, isGolden, held) {
+    const ar = $('#ckArena'); if (!ar) { if (held) holdState(false); return; }
     const r = ar.getBoundingClientRect();
-    const out = isGolden ? P.tapGolden() : P.tap();
+    const out = isGolden ? P.tapGolden() : P.tap(!!held);
     if (!out.v) return;
     const cg = $('#ckGoal'); if (cg) cg.innerHTML = goalHTML();
     if (isGolden && golden) { golden.remove(); golden = null; goldenAt = performance.now() + 18000 + Math.random() * 14000; }
@@ -322,7 +331,7 @@
     const w = POP_WORDS[h.k], word = h.word || w[Math.floor(h.t * 7) % w.length];
     const sub = h.k === 'save' ? ' · G' : h.k === 'goal' ? (h.tag === 'pp' ? ' · PPG' : h.tag === 'sh' ? ' · SHG' : ' · #' + (p.num || '')) : ' · #' + (p.num || '');
     return '<div class="hlpop pop-' + h.k + '"><span class="pop-face">' + A.portrait(p, team(), 42, rcol(p)) + '</span>' +
-      '<span class="pop-burst"><b>' + word + '</b><i>' + esc(last(p)) + sub + '</i></span></div>';
+      '<span class="pop-burst">' + (h.k === 'goal' ? '<span class="lamp"><span class="glow"></span></span>' : '') + '<b>' + word + '</b><i>' + esc(last(p)) + sub + '</i></span></div>';
   }
   // place the pop-up on the player it is about: face on the spot, burst toward the middle of the rink
   function placePop(el, a, at) {
@@ -637,7 +646,7 @@
         '<div class="note">Caps rise to ' + next.cap + ' for strengths. Stats stay where they are.' + (isG ? ' Goalies cost 1.5× shards.' : '') + '</div></div>';
     } else if (next && ri >= 3) {
       const b = (p.capB || 0) / 2, have = st.shards[pool];
-      h += '<div class="promo brk"><div class="brk-h"><b>Breakthroughs ' + b + ' / ' + ST.BREAK_MAX + '</b><i>Each breakthrough raises every cap by about 2 (strengths up to 99, weaker skills less, by type)</i></div>' +
+      h += '<div class="promo brk"><div class="brk-h"><b>Breakthroughs ' + b + ' / ' + ST.BREAK_MAX + '</b><i>Each one raises every cap by about 3. All six put him on Legendary caps (strengths up to 99, weaker skills lower by type).</i></div>' +
         '<div class="fac-bar">' + Array.from({ length: ST.BREAK_MAX }, (_, i) => '<i class="' + (i < b ? 'on' : '') + '"></i>').join('') + '</div>';
       if (ST.canBreak(p)) {
         const need = ST.breakCost(p), can = have >= need;
@@ -1155,7 +1164,7 @@
   G.UI = {
     render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet, savesSheet, popHTML, placePop,
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
-    tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, locked, arming, modalOpen,
+    tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, holdState, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },
     get tab() { return tab; },
     get selSwap() { return selSwap; }, set selSwap(v) { selSwap = v; },
