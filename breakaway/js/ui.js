@@ -28,8 +28,10 @@
   const shardIc = (k, s) => ic('shard', s || 15).replace('class="ic"', 'class="ic" style="color:' + POOLC[k] + '"');
 
   // ------------------------------------------------------------ TEAM
+  let gtilePromo = null;
   function renderTeam() {
     const st = ST.get(), t = st.team, L = t.lineup;
+    gtilePromo = ST.alerts().promo;
     const by = {}; t.roster.forEach(p => by[p.id] = p);
     const me = ST.teamById('me');
     let h = '';
@@ -49,14 +51,15 @@
       '<div><b>' + st.totals.cups + '</b><i>titles</i></div></div></div></section>';
     h += '<div class="quick"><button class="qbtn" data-act="history">' + ic('season', 20) + '<span>History</span></button>' +
       '<button class="qbtn coachq" data-act="coach">' + A.coachPortrait(st.coach, t, 26) + '<span>Coach</span></button>' +
-      '<button class="qbtn" data-act="kit">' + ic('jersey', 20) + '<span>Jersey + Logo</span></button></div>';
+      '<button class="qbtn" data-act="kit">' + ic('jersey', 20) + '<span>Jersey + Logo</span></button>' +
+      '<button class="qbtn" data-act="saves">' + ic('swap', 20) + '<span>Saves</span></button></div>';
     h += '<div class="wallet">' + ['F', 'D', 'G'].map(k => '<span class="wchip" title="' + POOLN[k] + ' shards">' + shardIc(k) + '<b>' + fmt(st.shards[k]) + '</b><i>' + k + ' shards</i></span>').join('') +
       '<span class="wchip">' + ic('tape', 15) + '<b>' + fmt(st.tape) + '</b><i>tape</i></span>' +
       '<span class="wchip">' + ic('token', 15) + '<b>' + ST.pickCount() + '</b><i>picks</i></span>' +
       '<span class="wchip">' + A.gearIcon('stick', 'var(--dim)', 15) + '<b>' + st.gear.length + '</b><i>spare gear</i></span></div>';
 
     h += sh('Lineup', '<button class="btn sm' + (editMode ? ' primary' : '') + '" data-act="editlines">' + ic(editMode ? 'check' : 'swap', 15) + (editMode ? ' Done' : ' Edit lines') + '</button>');
-    h += '<div class="gearbar"><button class="btn sm" data-act="autoequip">' + ic('gear', 15) + ' Auto-equip gear</button>' +
+    h += '<div class="gearbar"><button class="btn sm' + (ST.alerts().gear ? ' alert' : '') + '" data-act="autoequip">' + ic('gear', 15) + ' Auto-equip gear</button>' +
       '<label class="chk"><input type="checkbox" id="autoAll"' + (autoAll ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Re-fit equipped gear too</label></div>';
     if (editMode) {
       const sp = selSwap && by[selSwap];
@@ -76,7 +79,7 @@
       h += '<div class="lg-row"><div class="lg-h"><b>Line ' + (i + 1) + '</b></div><div class="lg-body">' +
         '<div class="lg-col">' + chemBlock(fi, unitOvr(f)) + '<div class="lg-tiles f">' + f.map((id, j) => gtile(by[id], slotLbl[j])).join('') + '</div>' + chemNotes(fi) + '</div>' +
         '<i class="lg-gap"></i>' +
-        '<div class="lg-col">' + (di ? chemBlock(di, unitOvr(d)) : '<div class="lg-chem"><b class="u-ovr">' + unitOvr(d.slice(0, 1)) + '</b><span class="chem">Starter · no chem</span></div>') +
+        '<div class="lg-col dcol">' + (di ? chemBlock(di, unitOvr(d)) : '<div class="lg-chem"><b class="u-ovr">' + unitOvr(d.slice(0, 1)) + '</b><span class="chem">Starter · no chem</span></div>') +
         '<div class="lg-tiles d">' + d.map((id, j) => gtile(by[id], i < 3 ? 'D' : (j === 0 ? 'Starter' : 'Backup'))).join('') + '</div>' + (di ? chemNotes(di) : '') + '</div>' +
         '</div></div>';
     }
@@ -94,10 +97,11 @@
   }
   function gtile(p, slot) {
     if (!p) return '<span class="gt empty"></span>';
+    const promo = !editMode && gtilePromo && gtilePromo[p.id];
     const sel = selSwap === p.id, can = editMode && selSwap && !sel && ST.canSwap(selSwap, p.id);
     const off = ['LW', 'C', 'RW'].indexOf(slot) >= 0 && p.pos !== slot;
     return '<button class="gt' + (sel ? ' sel' : '') + (can ? ' can' : '') + (editMode && selSwap && !sel && !can ? ' dim' : '') + '" data-p="' + p.id + '">' +
-      (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
+      (promo ? '<span class="gt-up" title="Can promote">' + ic('plus', 9) + '</span>' : '') + (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
       '<span class="pt-face">' + A.portrait(p, team(), 44, rcol(p)) + ovr(p) + '</span>' +
       '<span class="gt-n">' + flag(p.nat, 12) + esc(last(p)) + '</span>' +
       '<span class="gt-m">' + typeTag(p) + gearMini(p) + '</span></button>';
@@ -244,7 +248,7 @@
         (champ && lastS.div > 1 ? '<p class="sub">Promoted to <b>' + esc(d.n) + '</b>. Expect a season of catching up.</p>' : champ ? '<p class="sub">Elite champions. The league will be gunning for you.</p>' : '<p class="sub">Nothing is lost. Roster, pucks and gear carry over.</p>') +
         '<button class="btn primary big" data-act="nextseason">Start season ' + st.season + '</button></section>';
       if (ST.canPrestige()) h += '<section class="panel prest"><div class="eyebrow">Prestige ' + ((st.prestige || 0) + 1) + ' available</div><h3>Start over as a dynasty</h3>' +
-        '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players restart as Rare but keep their trophies, get +2 to every attribute per franchise they carry, and can be promoted all the way to Legendary. Coach skills, achievements and dailies start over. Hall of Fame gear, chemistry and franchise achievements carry over.</p>' +
+        '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players come back Legendary, starting about 5 Overall above the new roster, and keep their trophies plus +2 to every attribute per franchise they carry. Coach skills, achievements and dailies start over. Hall of Fame gear, chemistry and franchise achievements carry over.</p>' +
         '<button class="btn gold" data-act="prestige">' + ic('trophy', 16) + ' Choose Legacy players</button></section>';
     }
     if (feed.length) h += sh('Results') + '<div class="feed">' + feed.slice(0, 20).map(f => '<span class="fchip ' + (f.win ? 'w' : 'l') + '"><b>' + (f.win ? 'W' : 'L') + '</b>' + f.gf + '–' + f.ga + (f.ot ? '<i>' + (f.so ? 'SO' : 'OT') + '</i>' : '') + '<em>' + esc(f.oppAbbr) + '</em></span>').join('') + '</div>';
@@ -306,14 +310,21 @@
       '<span class="lv-side">' + badgeFor({ id: 'me' }, 24) + '<b>' + esc(st.team.abbr) + '</b><em id="lvA">0</em></span>' +
       '<span class="lv-clock"><b id="lvPer">—</b><i id="lvTime"></i></span>' +
       '<span class="lv-side r"><em id="lvB">0</em><b>' + (lv ? esc(lv.pre.oppAbbr) : '—') + '</b>' + (lv ? A.teamBadge(lv.pre.oppName, 24) : '') + '</span></div>' +
-      '<canvas id="lvCanvas" class="lv-canvas"></canvas>' +
+      '<div class="lv-rink"><canvas id="lvCanvas" class="lv-canvas"></canvas><div id="lvPop" class="lv-pop" aria-live="polite"></div></div>' +
       '<div class="lv-bot"><span>' + esc(label) + (lv ? ' · ' + esc(lv.pre.oppName) : '') + '</span><span id="lvShots" class="num"></span></div>' +
       '<div class="lv-log" id="lvLog"></div>' +
       (playoff ? '<table class="lv-per"><thead><tr><th></th><th>1st</th><th>2nd</th><th>3rd</th><th>OT</th><th>T</th></tr></thead><tbody id="lvPerT"></tbody></table>' : '') + '</div>';
   }
-  let liveRaf = 0, logKey = '';
+  let liveRaf = 0, logKey = '', popKey = '';
+  const POP_WORDS = { hit: ['BIG HIT!', 'BOOM!', 'CRUNCH!', 'WHAM!', 'LIGHTS OUT!'], save: ['BIG SAVE!', 'ROBBED!', 'DENIED!', 'WHAT A SAVE!', 'STONEWALLED!'] };
+  function popHTML(h) {
+    const p = ST.byId(h.id); if (!p) return '';
+    const w = POP_WORDS[h.k], word = w[Math.floor(h.t * 7) % w.length], side = Math.floor(h.t * 3) % 2 ? 'r' : 'l';
+    return '<div class="hlpop pop-' + h.k + ' ' + side + '"><span class="pop-face">' + A.portrait(p, team(), 54, rcol(p)) + '</span>' +
+      '<span class="pop-burst"><b>' + word + '</b><i>' + esc(last(p)) + (h.k === 'save' ? ' · G' : ' · #' + (p.num || '')) + '</i></span></div>';
+  }
   function liveLoop() {
-    cancelAnimationFrame(liveRaf); logKey = '';
+    cancelAnimationFrame(liveRaf); logKey = ''; popKey = '';
     const frame = now => {
       const cv = $('#lvCanvas');
       if (!cv || tab !== 'season') return;
@@ -342,6 +353,8 @@
           const row = (name, i) => '<tr><td>' + esc(name) + '</td>' + r.map((x, p) => '<td>' + (min > p * 20 || x[i] ? x[i] : '·') + '</td>').join('') + '<td><b>' + (i ? sc.b : sc.a) + '</b></td></tr>';
           pt.innerHTML = row(st.team.abbr, 0) + row(pre.oppAbbr, 1);
         }
+        const hl = !fin && !inter ? (tl.hl || []).find(x => min >= x.t && min - x.t < 3) : null, pk = hl ? hl.k + hl.t : '';
+        if (pk !== popKey) { popKey = pk; const el = $('#lvPop'); if (el) el.innerHTML = hl ? popHTML(hl) : ''; }
         G.LIVE.draw(cv, { anim: now, min, tl, final: fin, inter, c1: st.team.c1, c2: st.team.c2, oppAbbr: pre.oppAbbr });
       } else G.LIVE.draw(cv, { anim: now, min: 0, final: false, inter: 1, c1: st.team.c1, c2: st.team.c2 });
       liveRaf = requestAnimationFrame(frame);
@@ -524,8 +537,18 @@
     armedAt = lock ? Date.now() + 650 : 0;
     $('#sheet').classList.toggle('arming', !!lock);
     if (lock) setTimeout(() => $('#sheet').classList.remove('arming'), 650);
+    placeSheetX();
   }
-  function closeModal() { $('#modal').classList.add('hidden'); $('#modal').classList.remove('locked'); setTimeout(maybeSheets, 200); }
+  // a close button that stays on screen while a long sheet is scrolled (the sheet's own X scrolls away)
+  function placeSheetX() {
+    const x = $('#sheetX'), sh = $('#sheet'); if (!x || !sh) return;
+    if (!x.firstChild) x.innerHTML = ic('close', 16);
+    const show = modalOpen() && !locked() && sh.scrollTop > 50;
+    x.classList.toggle('hidden', !show);
+    if (show) { const r = sh.getBoundingClientRect(); x.style.top = Math.max(8, r.top + 10) + 'px'; x.style.right = Math.max(8, window.innerWidth - r.right + 10) + 'px'; }
+  }
+  document.addEventListener('DOMContentLoaded', () => { const sh = $('#sheet'); if (sh) sh.addEventListener('scroll', placeSheetX, { passive: true }); window.addEventListener('resize', placeSheetX); });
+  function closeModal() { $('#modal').classList.add('hidden'); $('#sheetX').classList.add('hidden'); $('#modal').classList.remove('locked'); setTimeout(maybeSheets, 200); }
   function modalOpen() { return !$('#modal').classList.contains('hidden'); }
   function locked() { return $('#modal').classList.contains('locked'); }
   function arming() { return Date.now() < armedAt; }
@@ -576,7 +599,7 @@
     const allCost = keys.reduce((s, k) => s + (p.a[k] < M.attrCap(p, k) ? M.upgradeCost(p.a[k]) : 0), 0);
     if (allCost) h += '<button class="btn primary" data-trainall="' + p.id + '"' + (st.pucks < allCost ? ' disabled' : '') + '>' + ic('dumbbell', 16) + ' Train every attribute +1 · ' + fmt(allCost) + '</button>';
     h += '<div class="legend"><span><i class="lg-t"></i>trained</span><span><i class="lg-g"></i>gear, boosts</span><span><i class="lg-tr"></i>trophies, legacy</span><span><i class="lg-c"></i>cap</span><span><sup class="str">▲</sup> strength</span><span><sup class="weak">▼</sup> weakness</span></div>';
-    if (p.legacyB) h += '<div class="tbonus">' + ic('trophy', 16) + '<span><b>Legacy +' + p.legacyB + '</b> to every attribute, earned by carrying him into a new franchise. Legacy players can be promoted all the way to Legendary.</span></div>';
+    if (p.legacyB) h += '<div class="tbonus">' + ic('trophy', 16) + '<span><b>Legacy +' + p.legacyB + '</b> to every attribute, earned by carrying him into a new franchise. Legacy players come back Legendary, so they can grow all the way.</span></div>';
     const tb = Object.keys(p.tb || {}).filter(k => p.tb[k]);
     if (tb.length) h += '<div class="tbonus">' + ic('trophy', 16) + '<span><b>Trophy stats</b> (up to 5 wins per award count)<br>' + Object.keys(p.tbc || {}).filter(k => p.tbc[k]).map(k => { const aw = ST.AWARDS.find(x => x.k === k), b = D.TROPHY_BONUS[k] || {}; return esc(aw ? aw.n : k) + ' ×' + p.tbc[k] + ': ' + Object.keys(b).filter(a => p.a[a] != null).map(a => '+' + b[a] * p.tbc[k] + ' ' + D.ATTR_LABEL[a]).join(', '); }).join('<br>') + '</span></div>';
 
@@ -763,9 +786,26 @@
     ['starExp', 'Star-share exponent', 1, 3, 0.05], ['mismatchExp', 'Mismatch exponent', 0, 1.2, 0.05], ['gammaShape', 'Gamma shape (lower = wilder)', 1, 20, 1]];
   const TUNE0 = {}; TUNE_ROWS.forEach(([k]) => { TUNE0[k] = D.TUNING[k]; });
   function resetTuning() { Object.keys(TUNE0).forEach(k => { D.TUNING[k] = TUNE0[k]; }); }
+  // three save files on this device: switch teams or start a new one
+  function savesSheet() {
+    const cur = ST.curSlot(), ago = t => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+    let h = sheetHead('Save files', 'Up to ' + ST.SLOTS + ' teams on this device. Switching saves your current team first.', 'data-act="close"');
+    h += '<div class="svfs">';
+    for (let i = 0; i < ST.SLOTS; i++) {
+      const s = i === cur ? (() => { const st = ST.get(); return { team: st.team, city: st.team.city, name: st.team.name, div: st.div, divName: ST.div().n, fr: (st.prestige || 0) + 1, season: st.season, cups: st.totals.cups, last: Date.now() }; })() : ST.slotInfo(i);
+      h += '<div class="svf' + (i === cur ? ' cur' : '') + (s ? '' : ' empty') + '"><span class="svf-n">' + (i + 1) + '</span>' +
+        (s ? '<span class="svf-j">' + jerseySVG(s.team, 44) + '</span><span class="svf-t"><b>' + esc(s.city + ' ' + s.name) + '</b><i>Div ' + s.div + ' · ' + esc(s.divName) + ' · Franchise ' + s.fr + ' · Season ' + s.season + (s.cups ? ' · ' + s.cups + ' title' + (s.cups > 1 ? 's' : '') : '') + '</i>' + (i === cur ? '<em>Playing now</em>' : '<em>Last played ' + ago(s.last) + '</em>') + '</span>'
+          : '<span class="svf-t"><b>Empty slot</b><i>Start a brand new team here.</i></span>') +
+        '<span class="svf-b">' + (i === cur ? '' : '<button class="btn sm' + (s ? ' primary' : '') + '" data-slot="' + i + '">' + (s ? 'Play' : 'New team') + '</button>') +
+        (s ? '<button class="btn sm danger-ghost" data-slotdel="' + i + '">Delete</button>' : '') + '</span></div>';
+    }
+    h += '</div><div class="note">Saves live in this browser on this device. Deleting a slot can’t be undone.</div>';
+    openModal(h);
+  }
   function tuneSheet() {
     const T = D.TUNING, st = ST.get();
     let h = sheetHead('Settings', st.dev ? 'Developer mode is on. These tools are for testing only.' : 'Your save lives on this device.', 'data-act="close"');
+    h += '<button class="btn wide" data-act="saves" style="margin-bottom:12px">' + ic('team', 15) + ' Save files (' + ST.SLOTS + ' slots)</button>';
     h += '<button class="toggle wide' + (st.dev ? ' on' : '') + '" data-act="devmode"><span class="tg-dot"></span>Developer mode ' + (st.dev ? 'on' : 'off') + '</button>' +
       '<div class="note">Developer mode shows the tuning sliders, the demo clock, Skip game and Add currencies. Turning it off puts every number back to normal.</div>';
     if (st.dev) {
@@ -884,7 +924,7 @@
     h += '</div>' + (d.ready ? '<button class="btn primary" data-act="daily">Claim day ' + d.day + ' daily reward</button>' : '<button class="btn primary" data-act="close">Let’s go</button>');
     openModal('<div class="result">' + h + '</div>');
   }
-  // prestige: pick up to three Legacy players to carry into the reset
+  // prestige: pick Legacy players (one more slot each franchise) to carry into the reset
   let prestSel = [];
   function prestigeSheet(keep) {
     if (!keep) prestSel = [];
@@ -895,7 +935,7 @@
       return '<button class="tsel-r' + (on ? ' on' : '') + '" data-psel="' + p.id + '">' + A.portrait(p, st.team, 40, rcol(p)) +
         '<span class="tsel-t"><b>' + esc(p.name) + (p.legacyB ? ' <em class="leg">Legacy +' + p.legacyB + '</em>' : '') + '</b><i>' + p.pos + ' · ' + M.typeOf(p).ab + ' · ' + M.overall(p) + ' ovr · ' + (p.awards || []).length + ' awards</i></span><span class="tsel-c">' + (on ? ic('check', 16) : '') + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="note">What resets: division, season count, pucks, shards, tape, regular gear, picks, traits, facilities, coach skills, achievements and daily rewards. What stays: Legacy players (as Rare, with their trophies, plus +2 every attribute), Hall of Fame gear, chemistry, your coach, history, trophy case, franchise achievements, jersey and logo. You can carry one more Legacy player with every new franchise, up to five.</div>';
+    h += '<div class="note">What resets: division, season count, pucks, shards, tape, regular gear, picks, traits, facilities, coach skills, achievements and daily rewards. What stays: Legacy players (as Legendary, starting about 5 Overall above the new roster, with their trophies and +2 every attribute), Hall of Fame gear, chemistry, your coach, history, trophy case, franchise achievements, jersey and logo. You can carry one more Legacy player with every new franchise, with no limit.</div>';
     h += '<button class="btn gold big" data-act="doprestige">' + ic('trophy', 16) + ' Start Franchise ' + ((st.prestige || 0) + 2) + ' with ' + prestSel.length + ' Legacy player' + (prestSel.length === 1 ? '' : 's') + '</button>';
     openModal(h);
   }
@@ -1031,7 +1071,7 @@
     $('#boosts').classList.toggle('hidden', !act.length);
     // red dots: something to do on that tab (gear to fit, a promotion, picks to draft, a game to play, rewards)
     const al = ST.alerts();
-    ['team', 'store', 'season', 'trophies'].forEach(k => {
+    ['store', 'season', 'trophies'].forEach(k => {
       const b = document.querySelector('#nav [data-tab=' + k + ']'); if (!b) return;
       b.dataset.badge = al[k] ? (k === 'season' ? '!' : al[k]) : '';
     });
@@ -1070,7 +1110,7 @@
   function pushFeed(f) { feed.unshift(f); if (feed.length > 60) feed.pop(); }
 
   G.UI = {
-    render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet,
+    render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet, savesSheet, popHTML,
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
     tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },

@@ -2,7 +2,23 @@
 (function (G) {
   'use strict';
   const D = G.DATA, M = G.M, S = G.SIM;
-  const SAVE_KEY = 'breakaway.save.v1';
+  // three save files: slot 1 keeps the original key so existing saves stay where they are
+  const SAVE_BASE = 'breakaway.save.v1', SLOT_KEY = 'breakaway.slot', SLOTS = 3;
+  function slotKey(i) { return i ? SAVE_BASE + '.s' + i : SAVE_BASE; }
+  function curSlot() { try { const v = parseInt(localStorage.getItem(SLOT_KEY), 10); return v >= 0 && v < SLOTS ? v : 0; } catch (e) { return 0; } }
+  let SAVE_KEY = slotKey(curSlot());
+  function slotInfo(i) {
+    try {
+      const raw = localStorage.getItem(slotKey(i)); if (!raw) return null;
+      const s = JSON.parse(raw); if (!s || !s.team) return null;
+      const d = D.DIVISIONS.find(x => x.d === s.div);
+      return { city: s.team.city, name: s.team.name, abbr: s.team.abbr, c1: s.team.c1, c2: s.team.c2, c3: s.team.c3, team: s.team, div: s.div, divName: d ? d.n : '', fr: (s.prestige || 0) + 1, season: s.season, cups: (s.totals && s.totals.cups) || 0, last: s.lastSave || 0 };
+    } catch (e) { return null; }
+  }
+  // switching saves the current file first; the page then reloads into the chosen one (an empty slot starts a new team)
+  // st is dropped so nothing (like the save that runs when the page hides) can write this team into the new slot
+  function useSlot(i) { if (st) save(); try { localStorage.setItem(SLOT_KEY, String(i)); } catch (e) { return false; } st = null; return true; }
+  function deleteSlot(i) { try { localStorage.removeItem(slotKey(i)); } catch (e) { } if (i === curSlot()) st = null; }
 
   let st = null;
   const listeners = [];
@@ -28,7 +44,8 @@
   function facLvl(k) { return (st.fac && st.fac[k]) || 0; }
   function facVal(k) { const f = D.FACILITIES.find(x => x.k === k); return f ? f.per * facLvl(k) : 0; }
   function facMax() { return 2 + (8 - st.div) * 2; }
-  function facCost(k) { return Math.round(400 * Math.pow(2.1, facLvl(k)) * payout()); }
+  // early levels used to cost almost nothing; now each level is a real decision (about 3x early, +40% late)
+  function facCost(k) { return Math.round(1200 * Math.pow(2.0, facLvl(k)) * payout()); }
   function applyFac() { D.TUNING.costMult = 1 - facVal('train') / 100; }
   function buildFac(k) {
     st.fac = st.fac || {};
@@ -159,7 +176,7 @@
   // ---------------------------------------------------------------- one game
   // simulated up front (prepare) so the rink panel can play it out, folded in when its clock runs out (commit)
   function nameOf(id) { const p = id && byId(id); return p ? p.name.split(' ').slice(1).join(' ') || p.name : null; }
-  function timeline(res) {
+  function timeline(res, A) {
     const ev = [];
     const mine = (res.a.list || []).slice();
     res.periods.forEach((p, i) => {
@@ -178,7 +195,18 @@
       else { const t = 60.3 + M.rand() * 4.4; ev.push({ t, s, ot: true, sc: s === 'a' ? nameOf(g.sc) : null, a1: s === 'a' ? nameOf(g.a1) : null }); total = t + 0.05; }
     }
     ev.sort((x, y) => x.t - y.t);
-    return { ev, total };
+    return { ev, total, hl: highlights(res, A, ev) };
+  }
+  // cartoon pop-ups during the live game: big hits by your skaters, big saves by your goalie.
+  // They land away from goals so the GOAL! banner never collides with one.
+  function highlights(res, A, ev) {
+    const out = [], st0 = res.a.stats || {}, free = t => t > 1.5 && t < 59 && !ev.some(e => Math.abs(e.t - t) < 2.6) && !out.some(h => Math.abs(h.t - t) < 4.5);
+    const hitters = Object.keys(st0).filter(id => st0[id].hits > 0 && byId(id));
+    const nh = Math.min(hitters.length ? 3 : 0, M.ri(1, 3)), ns = res.a.saves > 0 && A && A.goalie ? Math.min(3, M.ri(1, 2) + (res.b.shots > 32 ? 1 : 0)) : 0;
+    const place = (k, id) => { for (let i = 0; i < 30; i++) { const t = 1.5 + M.rand() * 57; if (free(t)) { out.push({ t, k, id }); return; } } };
+    for (let i = 0; i < nh; i++) place('hit', hitters[M.weightedIndex(hitters.map(id => st0[id].hits * st0[id].hits))]);
+    for (let i = 0; i < ns; i++) place('save', A.goalie.id);
+    return out.sort((x, y) => x.t - y.t);
   }
   function rateMe(playoff) {
     return S.ratePlayerTeam(st.team, { goalieIdx: !playoff && M.rand() < 0.3 ? 1 : 0, style: st.coach.style, playoff: !!playoff });
@@ -191,7 +219,7 @@
     const A = rateMe(false);
     const res = S.simGame(A, S.rateAI(opp), divRef(), {});
     S.applyMinus(res.a.stats, A, res.b.goals);
-    return { kind: 'season', idx: st.gameIndex, season: st.season, oppId, oppName: opp.name, oppAbbr: opp.abbr, A, res, tl: timeline(res) };
+    return { kind: 'season', idx: st.gameIndex, season: st.season, oppId, oppName: opp.name, oppAbbr: opp.abbr, A, res, tl: timeline(res, A) };
   }
   function playNextGame() {
     if (st.phase !== 'season') return null;
@@ -364,7 +392,7 @@
     opp.O += po.bump; opp.D += po.bump; opp.G += po.bump;
     const res = S.simGame(A, S.rateAI(opp), divRef(), { edge: 1.05 });
     S.applyMinus(res.a.stats, A, res.b.goals);
-    return { kind: 'playoff', round: po.round, game: po.log.length, oppName: po.opp.name, oppAbbr: po.opp.abbr, A, res, tl: timeline(res) };
+    return { kind: 'playoff', round: po.round, game: po.log.length, oppName: po.opp.name, oppAbbr: po.opp.abbr, A, res, tl: timeline(res, A) };
   }
   function playPlayoffGame() { return commitPlayoff(preparePlayoff()); }
   function commitPlayoff(pre) {
@@ -1057,7 +1085,7 @@
   // every attribute per prestige they carry, and can be promoted all the way to Legendary with shards.
   // The whole club earns +10% income per prestige level.
   // Legacy slots grow with each franchise: 1 for your second franchise, 2 for your third, up to 5
-  function keepLimit() { return Math.min(5, (st.prestige || 0) + 1); }
+  function keepLimit() { return (st.prestige || 0) + 1; }
   // only in the offseason right after winning the Division 1 championship
   function canPrestige() { const h = st && st.history[0]; return !!h && st.phase === 'offseason' && h.result === 'Champion' && h.div === 1 && (h.fr || 1) === franchiseNo(); }
   function prestige(keepIds) {
@@ -1067,17 +1095,23 @@
     const hof = st.gear.filter(g => g.hof);
     st.team.roster.forEach(p => Object.keys(p.gear).forEach(k => { if (p.gear[k] && p.gear[k].hof) hof.push(p.gear[k]); }));
     st.prestige = (st.prestige || 0) + 1;
+    // Legacy players come back Legendary (full caps to grow into) but start just above the new roster:
+    // about 5 Overall over the fresh team's average, Legacy bonus included
+    const fresh = M.makeRoster(10, 'common');
+    const freshAvg = fresh.reduce((s, p) => s + M.trainedOverall(p), 0) / fresh.length;
     keep.forEach(p => {
       Object.keys(p.gear).forEach(k => { p.gear[k] = null; });
       p.xf = p.xf2 = null; p.capB = 0; p.locked = false;
-      p.rarity = 'rare';
-      const f = 16 / Math.max(16, M.trainedOverall(p));
-      Object.keys(p.a).forEach(k => { p.a[k] = Math.max(3, Math.min(M.attrCap(p, k), Math.round(p.a[k] * f))); });
+      p.rarity = 'legendary';
       p.legacyB = (p.legacyB || 0) + 2;
+      const target = Math.max(5, Math.round(freshAvg + 5 - p.legacyB));
+      for (let i = 0; i < 6; i++) {
+        const f = target / Math.max(1, M.trainedOverall(p));
+        Object.keys(p.a).forEach(k => { p.a[k] = Math.max(1, Math.min(M.attrCap(p, k), Math.round(p.a[k] * f))); });
+      }
       p.how = 'Legacy player · carried into Franchise ' + (st.prestige + 1);
       p.acq = null;
     });
-    const fresh = M.makeRoster(10, 'common');
     keep.forEach(k => { const i = fresh.findIndex(p => p.pos === k.pos && !p.kept); if (i >= 0) fresh.splice(i, 1); });
     const used = {}; keep.forEach(k => { used[k.num] = 1; });
     fresh.forEach(p => { if (used[p.num]) { let n = 1; while (used[n]) n++; p.num = n; } used[p.num] = 1; });
@@ -1104,9 +1138,9 @@
   // Each claim lets you pick one reward: a Hall of Fame gear piece or a trait.
   const FACH = [
     { k: 'franchises', n: 'Franchise Builder', d: 'Start a new franchise (pays every time)', repeat: true },
-    { k: 'points', n: 'Franchise Icon', d: 'One player reaches career points', tiers: [1000, 2500, 5000] },
-    { k: 'games', n: 'Iron Man', d: 'One player reaches career games played', tiers: [500, 1000, 2000] },
-    { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [5000, 10000] }
+    { k: 'points', n: 'Franchise Icon', d: 'One player reaches career points', tiers: [2500, 5000, 10000] },
+    { k: 'games', n: 'Iron Man', d: 'One player reaches career games played', tiers: [1000, 2000, 4000] },
+    { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [10000, 25000] }
   ];
   function careerBest() {
     const life = st.life = st.life || {};
@@ -1165,8 +1199,10 @@
         if (best >= 0 && (!cur || best > M.gearValue(cur))) gearUp = true;
       });
     });
-    if (gearUp) out.team++;
-    ids.forEach(id => { const p = byId(id); if (p && ((canPromote(p) && st.shards[poolOf(p)] >= promoCost(p)) || (canBreak(p) && st.shards[poolOf(p)] >= breakCost(p)))) out.team++; });
+    // gear and promotions show on the Team page itself (Auto-equip button, player tiles), not on the tab
+    out.gear = gearUp;
+    out.promo = {};
+    st.team.roster.forEach(p => { if ((canPromote(p) && st.shards[poolOf(p)] >= promoCost(p)) || (canBreak(p) && st.shards[poolOf(p)] >= breakCost(p))) out.promo[p.id] = 1; });
     out.store = pickCount();
     if (st.phase === 'playoffs' || st.phase === 'offseason') out.season = 1;
     out.trophies = (st.achClaim || []).length + (dailyState().ready ? 1 : 0) +
@@ -1397,6 +1433,7 @@
     AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks,
     refreshAgents, signAgent, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
     facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, keepLimit, FACH, fachValue, fachNeed, offerFach, takeFach, setAutoScrap, setAutoUp,
-    save, load, wipe, catchUp, toast, fmt, findGear, freeNumber, checkGold, rollGearDrop, ord
+    SLOTS, curSlot, slotInfo, useSlot, deleteSlot,
+    byId, save, load, wipe, catchUp, toast, fmt, findGear, freeNumber, checkGold, rollGearDrop, ord
   };
 })(window.BK = window.BK || {});

@@ -943,3 +943,65 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .pobanner b{font:800 13px/1 var(--fd);text-transform:uppercase;letter-spacing:.06em}
 @keyframes pbpulse{50%{box-shadow:0 0 0 3px rgba(232,180,58,.18)}}
 .lg-chem{flex-wrap:wrap;row-gap:2px;min-width:0}.lg-chem .chem{white-space:nowrap}
+
+/* live game: cartoon BIG HIT / BIG SAVE pop-ups over the rink */
+.lv-rink{position:relative}
+.lv-pop{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.hlpop{display:flex;align-items:center;gap:2px;animation:popIn .32s cubic-bezier(.2,1.6,.4,1) both, popOut .25s ease-in 1.15s forwards}
+.hlpop.r{flex-direction:row-reverse}
+.pop-face{position:relative;z-index:2;border-radius:50%;background:#fff;padding:3px;box-shadow:0 0 0 3px #0b0f14,4px 4px 0 #0b0f14;line-height:0}
+.pop-face .pt{display:block}
+.pop-burst{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 26px 18px;min-width:132px;
+  font-family:"Barlow Condensed",system-ui,sans-serif;text-align:center;transform:rotate(-6deg);
+  filter:drop-shadow(4px 4px 0 #0b0f14)}
+.hlpop.r .pop-burst{transform:rotate(6deg)}
+.pop-burst::before{content:"";position:absolute;inset:0;z-index:-1;background:#0b0f14;
+  clip-path:polygon(50% 0,59% 18%,78% 4%,76% 26%,100% 22%,86% 42%,100% 58%,80% 64%,90% 88%,66% 78%,56% 100%,46% 80%,26% 96%,26% 74%,2% 80%,14% 58%,0 40%,20% 34%,10% 10%,34% 20%)}
+.pop-burst::after{content:"";position:absolute;inset:4px;z-index:-1;background:radial-gradient(circle at 50% 45%,#fff6b0 0 22%,#ffd21f 23% 60%,#ff8a1f 61%);
+  clip-path:polygon(50% 0,59% 18%,78% 4%,76% 26%,100% 22%,86% 42%,100% 58%,80% 64%,90% 88%,66% 78%,56% 100%,46% 80%,26% 96%,26% 74%,2% 80%,14% 58%,0 40%,20% 34%,10% 10%,34% 20%)}
+.pop-save .pop-burst::after{background:radial-gradient(circle at 50% 45%,#e8fbff 0 22%,#6fe0ff 23% 60%,#2f8cff 61%)}
+.pop-burst b{font-size:25px;font-weight:800;font-style:italic;line-height:.95;letter-spacing:.01em;color:#fff;
+  -webkit-text-stroke:1.6px #0b0f14;paint-order:stroke fill;text-shadow:2px 2px 0 #c8102e}
+.pop-save .pop-burst b{text-shadow:2px 2px 0 #1f3fbf}
+.pop-burst i{font-style:normal;font-weight:800;font-size:12.5px;color:#0b0f14;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+@keyframes popIn{0%{transform:scale(.2) rotate(-14deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes popOut{to{transform:scale(1.25);opacity:0}}
+@media (prefers-reduced-motion:reduce){.hlpop{animation:none}}
+/* on-page alerts: gear to fit (Auto-equip button), promotion ready (player tile) */
+.btn.alert{position:relative}
+.btn.alert::after{content:"";position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--bg)}
+.gt-up{position:absolute;top:3px;right:3px;z-index:2;width:15px;height:15px;border-radius:50%;background:var(--bad);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--bg1,#151b24)}
+.gt-up svg{width:9px;height:9px}
+/* save files */
+.svfs{display:flex;flex-direction:column;gap:8px;margin:4px 0 10px}
+.svf{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--bg3);border:1px solid var(--line);min-width:0}
+.svf.cur{border-color:var(--acc,#4da3ff);box-shadow:inset 0 0 0 1px var(--acc,#4da3ff)}
+.svf.empty{opacity:.85;border-style:dashed}
+.svf-n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font:700 12px var(--fb);color:var(--dim)}
+.svf-j{flex:none;line-height:0}
+.svf-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.svf-t b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svf-t i{font-style:normal;font-size:11.5px;color:var(--dim2)}
+.svf-t em{font-style:normal;font-size:11px;color:var(--dim)}
+.svf.cur .svf-t em{color:var(--good,#3fa65c);font-weight:700}
+.svf-b{flex:none;display:flex;flex-direction:column;gap:5px}
+.ob-slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin:-4px 0 14px}
+.ob-slots:empty{display:none}
+.ob-slots span{width:100%;text-align:center;font-size:12px;color:var(--dim2)}
+.quick{grid-template-columns:repeat(4,1fr);gap:6px}
+.qbtn{flex-direction:column;gap:3px;padding:9px 4px;font-size:12px;text-align:center;line-height:1.15}
+/* sheets on phones: never taller than the visible screen, always a strip of backdrop to tap, a close button that stays put */
+#modal{padding-top:calc(env(safe-area-inset-top, 0px) + 36px)}
+.sheet{max-height:100%;overscroll-behavior:contain}
+.sheet-x{position:fixed;z-index:61;background:var(--bg3);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.phero{border-radius:22px 22px 0 0}
+/* phones: forwards on top, then the pair (or goalies) with its chemistry beside it, so nothing gets squeezed */
+@media (max-width:560px){
+  .lg-body{grid-template-columns:minmax(0,1fr);gap:8px}
+  .lg-body .lg-gap{width:100%;height:1px;margin:0}
+  .lg-col.dcol{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);column-gap:10px;row-gap:5px;align-items:start}
+  .lg-col.dcol .lg-tiles{grid-column:1;grid-row:1 / span 2}
+  .lg-col.dcol .lg-chem{grid-column:2;grid-row:1;align-self:start}
+  .lg-col.dcol .lg-n{grid-column:2;grid-row:2;flex-direction:column;align-items:flex-start}
+  .lg-col.dcol .lg-chem em{margin-left:0}
+}

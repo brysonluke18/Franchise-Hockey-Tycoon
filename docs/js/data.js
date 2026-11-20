@@ -190,9 +190,9 @@
   // goal/ast/pim/hits/blk scale how the sim hands out those stats.
   const TYPES = {
     sniper: { n: 'Sniper', ab: 'SNP', g: 'F', str: ['shooting', 'hands'], weak: ['defense', 'grit'], goal: 1.4, ast: 0.85, pim: 0.5, hits: 0.6, blk: 0.6, d: 'Lives to shoot. Scores the most, defends the least.' },
-    playmaker: { n: 'Playmaker', ab: 'PLY', g: 'F', str: ['passing', 'iq'], weak: ['grit', 'shooting'], goal: 0.8, ast: 1.45, pim: 0.5, hits: 0.6, blk: 0.7, d: 'Sets up linemates. Piles up assists.' },
-    power: { n: 'Power Forward', ab: 'PWF', g: 'F', str: ['shooting', 'grit'], weak: ['iq', 'passing'], goal: 1.15, ast: 0.9, pim: 1.4, hits: 1.7, blk: 0.8, d: 'Goals and hits in one body. Takes penalties.' },
-    twoway: { n: 'Two-Way Forward', ab: 'TWF', g: 'F', str: ['defense', 'iq'], weak: ['shooting', 'hands'], goal: 0.85, ast: 1.0, pim: 0.6, hits: 1.0, blk: 1.4, d: 'Plays both ends. Best plus-minus, high defense cap.' },
+    playmaker: { n: 'Playmaker', ab: 'PLY', g: 'F', str: ['passing', 'iq', 'hands'], weak: ['grit', 'defense'], goal: 0.8, ast: 1.45, pim: 0.5, hits: 0.6, blk: 0.7, d: 'Sets up linemates. Piles up assists.' },
+    power: { n: 'Power Forward', ab: 'PWF', g: 'F', str: ['shooting', 'grit'], weak: ['hands', 'passing'], goal: 1.15, ast: 0.9, pim: 1.4, hits: 1.7, blk: 0.8, d: 'Goals and hits in one body. Takes penalties.' },
+    twoway: { n: 'Two-Way Forward', ab: 'TWF', g: 'F', str: ['defense', 'iq', 'passing'], weak: ['shooting', 'hands', 'grit'], goal: 0.85, ast: 1.0, pim: 0.6, hits: 1.0, blk: 1.4, d: 'Plays both ends. Best plus-minus, high defense cap.' },
     enforcer: { n: 'Enforcer', ab: 'ENF', g: 'F', str: ['grit', 'defense'], weak: ['hands', 'passing', 'shooting'], goal: 0.55, ast: 0.6, pim: 3.2, hits: 2.8, blk: 1.1, d: 'Protects teammates. Hits, fights and penalty minutes.' },
     ofd: { n: 'Offensive Defenseman', ab: 'OFD', g: 'D', str: ['passing', 'shooting', 'skating'], weak: ['defense', 'grit'], goal: 1.7, ast: 1.45, pim: 0.7, hits: 0.7, blk: 0.8, d: 'Joins the rush. Points from the blue line.' },
     dfd: { n: 'Defensive Defenseman', ab: 'DFD', g: 'D', str: ['defense', 'grit'], weak: ['shooting', 'hands'], goal: 0.5, ast: 0.7, pim: 1.3, hits: 1.5, blk: 1.6, d: 'Shuts the door. Blocks shots, clears the crease.' },

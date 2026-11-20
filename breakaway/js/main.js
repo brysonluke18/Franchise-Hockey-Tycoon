@@ -24,6 +24,13 @@
     sel.innerHTML = D.NATIONS.slice().sort((a, b) => a.n.localeCompare(b.n)).map(n => '<option value="' + n.c + '"' + (n.c === kit.fav ? ' selected' : '') + '>' + n.n + '</option>').join('');
     sel.addEventListener('change', () => { kit.fav = sel.value; obChips(); shuffleName(); });
     obChips(); shuffleName(); obPreview();
+    // other save files: a way back to an existing team from the new-team screen
+    const others = []; for (let i = 0; i < ST.SLOTS; i++) { const s = i !== ST.curSlot() && ST.slotInfo(i); if (s) others.push([i, s]); }
+    const ob = $('#obSlots');
+    if (ob && others.length) {
+      ob.innerHTML = '<span>Or go back to a saved team</span>' + others.map(([i, s]) => '<button class="btn sm" data-obslot="' + i + '">' + s.city + ' ' + s.name + ' · Div ' + s.div + '</button>').join('');
+      ob.addEventListener('click', e => { const b = e.target.closest('[data-obslot]'); if (b && ST.useSlot(+b.dataset.obslot)) location.reload(); });
+    }
     ['c1', 'c2', 'c3'].forEach(id => $('#' + id).addEventListener('input', obPreview));
     $('#obShuffle').addEventListener('click', shuffleName);
     $('#obStart').addEventListener('click', () => {
@@ -127,6 +134,13 @@
     const tab = T.closest('#nav button');
     if (tab) { UI.setTab(tab.dataset.tab); return; }
     if (T.closest('#btnTune')) { UI.tuneSheet(); return; }
+    const sl = T.closest('[data-slot]'); if (sl) { if (ST.useSlot(+sl.dataset.slot)) location.reload(); return; }
+    const sd = T.closest('[data-slotdel]');
+    if (sd) {
+      const i = +sd.dataset.slotdel;
+      if (!sd.dataset.sure) { sd.dataset.sure = '1'; sd.textContent = 'Tap again to delete'; sd.classList.add('danger'); return; }
+      const cur = i === ST.curSlot(); ST.deleteSlot(i); if (cur) location.reload(); else UI.savesSheet(); return;
+    }
 
     const kp = T.closest('[data-kpat]'), kc = T.closest('[data-kcrest]'), kpal = T.closest('[data-kpal]'), klg = T.closest('[data-klogo]'), ksw = T.closest('[data-act="kswap"]');
     if ((kp || kc || kpal || klg || ksw) && UI.kitDraft) {
@@ -214,6 +228,7 @@
         case 'devgrant': if (!st.dev) return; ST.devGrant(); UI.closeModal(); UI.render(); return;
         case 'hint': st.hintClosed = true; ST.save(); UI.render(); return;
         case 'kit': UI.kitDraft = null; UI.kitSheet(); return;
+        case 'saves': UI.savesSheet(); return;
         case 'kitclose': UI.kitDraft = null; UI.closeModal(); return;
         case 'savekit': {
           const k = UI.kitDraft, t = st.team;

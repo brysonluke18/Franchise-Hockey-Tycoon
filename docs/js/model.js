@@ -74,7 +74,7 @@
   // per-attribute cap: strengths reach the rarity cap, other skills 90%, weaknesses 78%; legendary is 99 across the board
   // Type shapes the caps (strengths high, weaknesses low) but never the ceiling: each (position, type)
   // gets a scale so that a fully trained player reaches exactly the rarity cap in Overall.
-  const CAP_F = { str: 1, other: 0.9, weak: 0.78 }, capScale = {};
+  const CAP_F = { str: 1, other: 0.88, weak: 0.74 }, capScale = {};
   function capShape(t, key) { return t.str.indexOf(key) >= 0 ? CAP_F.str : t.weak.indexOf(key) >= 0 ? CAP_F.weak : CAP_F.other; }
   function scaleFor(p) {
     const k = p.pos + '|' + p.type;
