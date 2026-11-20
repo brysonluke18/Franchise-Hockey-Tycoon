@@ -45,7 +45,8 @@
     const p = Math.floor(e.t / 20);
     return ['1st', '2nd', '3rd'][p] + ' ' + mmss(e.t - p * 20);
   }
-  function goalLine(e) { return e.s === 'a' ? (e.sc || 'Goal') + (e.a1 ? ' (' + e.a1 + (e.a2 ? ', ' + e.a2 : '') + ')' : ' (unassisted)') : ''; }
+  const TAGN = { pp: ' · PPG', sh: ' · SHG' };
+  function goalLine(e) { return e.s === 'a' ? (e.sc || 'Goal') + (e.a1 ? ' (' + e.a1 + (e.a2 ? ', ' + e.a2 : '') + ')' : ' (unassisted)') + (TAGN[e.tag] || '') : ''; }
 
   // ---------------------------------------------------------------- puck path
   // wander through the neutral zone; in the minute before a goal, carry it into the
@@ -55,12 +56,20 @@
     const y = 42.5 + 26 * Math.sin(min * 2.3 + 0.7 + Math.cos(min * 0.9)) + 4 * Math.cos(anim / 270);
     return { x, y };
   }
+  // the puck heads for whatever happens next: a goal at either net, or a big save by your goalie
+  // (so a save is always made with the puck in your own zone)
+  function targets(tl) {
+    if (!tl._tg) tl._tg = tl.ev.map(e => ({ t: e.t, s: e.s, so: e.so, ev: e })).concat((tl.hl || []).filter(h => h.k === 'save').map(h => ({ t: h.t, s: 'b', save: true })))
+      .sort((x, y) => x.t - y.t);
+    return tl._tg;
+  }
   function puckAt(tl, min, anim) {
     let next = null, prev = null;
-    for (const e of tl.ev) { if (e.t > min) { next = e; break; } prev = e; }
-    if (prev && min - prev.t < 0.4) {
+    for (const e of targets(tl)) { if (e.t > min) { next = e; break; } prev = e; }
+    if (prev && prev.save && min - prev.t < 0.6) return { x: 17 + Math.sin(anim / 140), y: 42.5 + 3 * Math.sin(prev.t * 9) };
+    if (prev && !prev.save && min - prev.t < 0.4) {
       const net = prev.s === 'a' ? 189 : 11;
-      return { x: net + (prev.s === 'a' ? 2 : -2), y: 42.5, goal: prev };
+      return { x: net + (prev.s === 'a' ? 2 : -2), y: 42.5, goal: prev.ev };
     }
     const w = wander(min, anim);
     if (next && next.t - min < 1.1 && !next.so) {
@@ -68,7 +77,7 @@
       const dir = next.s === 'a' ? 1 : -1;
       const zone = { x: 100 + dir * 68, y: 42.5 + 18 * Math.sin(min * 5) };
       if (k < 0.75) { const q = k / 0.75; return { x: w.x + (zone.x - w.x) * q, y: w.y + (zone.y - w.y) * q }; }
-      const q = (k - 0.75) / 0.25, net = { x: 100 + dir * 89, y: 42.5 };
+      const q = (k - 0.75) / 0.25, net = { x: 100 + dir * (next.save ? 83 : 89), y: 42.5 + (next.save ? 3 * Math.sin(next.t * 9) : 0) };
       return { x: zone.x + (net.x - zone.x) * q, y: zone.y + (net.y - zone.y) * q };
     }
     return w;
@@ -122,38 +131,39 @@
     const T = o.anim / 1000;
     const playing = !o.final && !o.inter && o.tl;
     const pk = playing ? puckAt(o.tl, o.min, o.anim) : { x: 100, y: 42.5 };
-    function skaters(dir, col, edge) {
-      // dir 1 = attacks right. Forwards around the puck, defense between puck and own net
-      const offs = [[-4, -13], [5, 1], [-4, 14], [-24, -16], [-24, 17]];
+    const anchors = { pk: { x: X(pk.x), y: Y(pk.y) }, net: { x: X(186), y: Y(42.5) }, g: null, w, h };
+    function skaters(dir, col, edge, short) {
+      // dir 1 = attacks right. Forwards around the puck, defense between puck and own net; a penalized team plays one short
+      const offs = [[-4, -13], [5, 1], [-4, 14], [-24, -16], [-24, 17]].slice(0, short ? 4 : 5);
       offs.forEach((of, i) => {
         const jx = 7 * Math.sin(T * (1.9 + i * 0.37) + i * 2.1 + dir) + 4 * Math.sin(T * (4.7 + i * 0.6) + i);
         const jy = 6 * Math.cos(T * (1.6 + i * 0.43) + i * 1.3 + dir) + 3 * Math.sin(T * (5.3 + i * 0.5) + i * 0.7);
         let x = playing ? pk.x + dir * of[0] + jx : 100 - dir * (8 + i * 9);
         let y = playing ? pk.y + of[1] + jy : 14 + i * 14;
         [x, y] = inRink(x, y, 3.5);
+        if (dir > 0 && i === 1) anchors.hit = { x: X(x), y: Y(y) };
         player(c, X(x), Y(y), 2.6 * s, col, edge);
       });
       const gx = dir > 0 ? 13 : 187;
-      player(c, X(gx), Y(42.5 + (pk.y - 42.5) * 0.12), 2.9 * s, col, edge);
+      const gy = 42.5 + (pk.y - 42.5) * 0.12;
+      if (dir > 0) anchors.g = { x: X(gx), y: Y(gy) };
+      player(c, X(gx), Y(gy), 2.9 * s, col, edge);
     }
-    skaters(1, o.c1, o.c2);
-    skaters(-1, '#5d6b7d', '#e9eef4');
+    const sh = playing && o.pen ? o.pen.s : null;
+    skaters(1, o.c1, o.c2, sh === 'a');
+    skaters(-1, '#5d6b7d', '#e9eef4', sh === 'b');
     dot(c, X(pk.x), Y(pk.y), 1.4 * s, '#0b0f14');
 
     // overlays
     const sc = playing && pk.goal ? pk.goal : null;
-    if (sc || o.inter || o.final) {
+    if ((sc && sc.s !== 'a') || o.inter || o.final) {
       const big = o.final ? 'FINAL' : o.inter ? 'END OF ' + ['', '1ST', '2ND', '3RD'][o.inter] : sc.s === 'a' ? 'GOAL!' : 'GOAL ' + (o.oppAbbr || '');
       c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillStyle = sc && sc.s === 'a' ? 'rgba(200,16,46,.92)' : 'rgba(11,15,20,.8)';
       c.font = '800 ' + Math.round(Math.min(h * 0.2, 30)) + 'px "Barlow Condensed",system-ui,sans-serif';
       c.fillText(big, w / 2, h * 0.36);
-      if (sc && sc.s === 'a') {
-        c.fillStyle = 'rgba(11,15,20,.85)';
-        c.font = '700 ' + Math.round(Math.min(h * 0.11, 15)) + 'px "Barlow Condensed",system-ui,sans-serif';
-        c.fillText(goalLine(sc), w / 2, h * 0.56);
-      }
     }
+    return anchors;
   }
   // keep a point inside the rounded boards, m units from the edge
   const CR = 28;
@@ -171,5 +181,5 @@
   function dot(c, x, y, r, f) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = f; c.fill(); }
   function player(c, x, y, r, f, s) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = f; c.fill(); c.lineWidth = Math.max(1.2, r * 0.45); c.strokeStyle = s; c.stroke(); }
 
-  G.LIVE = { playoffClock, score, perScores, clockText, period, clock, stamp, goalLine, draw };
+  G.LIVE = { playoffClock, score, perScores, clockText, period, clock, stamp, goalLine, draw, mmss };
 })(window.BK = window.BK || {});

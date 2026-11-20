@@ -84,12 +84,15 @@
     const user = A.user ? sideA : B.user ? sideB : null, them = user === sideA ? sideB : sideA;
     if (user && opts.edge) { user.goalRate *= opts.edge; them.goalRate /= opts.edge; }
     let ga = 0, gb = 0;
-    const periods = [];
+    const periods = [], pens = [];
+    sideA.disc = discipline(A); sideB.disc = discipline(B);
     for (let per = 0; per < 3; per++) {
       const down = !user ? 0 : user === sideA ? gb - ga : ga - gb;
       const push = per > 0 && down > 0 ? 1 + Math.min(0.3, 0.12 * down) * (opts.edge ? 1.3 : 1) : 1;
       if (user) user.goalRate *= push;
-      const pa = periodGoals(sideA, per), pb = periodGoals(sideB, per);
+      let pa = periodGoals(sideA, per), pb = periodGoals(sideB, per);
+      const st2 = specialTeams(sideA, sideB, per, pens);
+      pa += st2.a; pb += st2.b;
       if (user) user.goalRate /= push;
       ga += pa; gb += pb;
       periods.push({ a: pa, b: pb });
@@ -114,10 +117,12 @@
     const res = {
       a: { goals: ga, shots: sideA.shots, stats: sideA.stats, list: sideA.list, saves: sideB.shots - gb },
       b: { goals: gb, shots: sideB.shots, stats: sideB.stats, list: sideB.list, saves: sideA.shots - ga },
-      periods, ot, so, imbalance: sideA.imbalance || sideB.imbalance || 1
+      periods, ot, so, pens, imbalance: sideA.imbalance || sideB.imbalance || 1
     };
     res.a.ga = gb; res.a.sa = sideB.shots;
     res.b.ga = ga; res.b.sa = sideA.shots;
+    res.a.ppg = pens.filter(p => p.g === 'a' && !p.sh).length; res.b.ppg = pens.filter(p => p.g === 'b' && !p.sh).length;
+    res.a.pp = pens.filter(p => p.s === 'b').length; res.b.pp = pens.filter(p => p.s === 'a').length;
     return res;
   }
 
@@ -134,9 +139,43 @@
     return { self, opp, O, shots, psave, ref, stats: self.user ? {} : null, list: self.user ? [] : null, goalRate: 1 - psave };
   }
 
+  // ---------------------------------------------------------------- special teams
+  // Even strength scores a little less than before because power plays now add their own goals.
+  const ES_SCALE = 0.84;
+  // how often a team takes penalties: player types (enforcers, power forwards) and grit
+  function discipline(T) {
+    if (!T.user) return 1;
+    const sk = T.lines.reduce((a, l) => a.concat(l.ps), []).concat(T.pairs.reduce((a, p) => a.concat(p.ps), []));
+    const f = sk.reduce((s, p) => s + M.typeOf(p).pim * (0.7 + M.eff(p, 'grit') / 100), 0) / sk.length;
+    return M.clamp(f, 0.6, 1.8);
+  }
+  // each period: penalties for both sides, each one a two-minute power play for the other team.
+  // The power play converts on about one in five, more with better offense against a weaker kill;
+  // now and then the short-handed team scores instead.
+  function specialTeams(sA, sB, per, pens) {
+    const out = { a: 0, b: 0 };
+    [[sA, sB, 'a', 'b'], [sB, sA, 'b', 'a']].forEach(([pk, pp, sk, sp]) => {
+      const n = M.binomial(6, 0.13 * pk.disc);
+      for (let k = 0; k < n; k++) {
+        const pen = { per, s: sk, g: null };
+        if (pk.self.user) {
+          const ps = pk.self.lines.reduce((a, l) => a.concat(l.ps), []).concat(pk.self.pairs.reduce((a, p) => a.concat(p.ps), []));
+          const who = ps[M.weightedIndex(ps.map(p => T(p).pim * (0.6 + M.eff(p, 'grit') / 60)))];
+          row(pk.stats, who.id).pim += 2; pen.pid = who.id;
+        }
+        const pGoal = M.clamp(0.2 * Math.pow(pp.O / Math.max(4, pp.opp.D), 0.6) * ((1 - pp.psave) / 0.095), 0.06, 0.42);
+        pp.shots += 2;
+        if (M.rand() < pGoal) { pen.g = sp; out[sp]++; if (pp.self.user) { attribute(pp, 1, 2, per, 'pp'); pp.list[pp.list.length - 1].pen = pens.length; } }
+        else if (M.rand() < 0.03) { pen.g = sk; pen.sh = true; out[sk]++; pk.shots++; if (pk.self.user) { attribute(pk, 1, 1, per, 'sh'); pk.list[pk.list.length - 1].pen = pens.length; } }
+        pens.push(pen);
+      }
+    });
+    return out;
+  }
+
   function periodGoals(side, per) {
     const perShots = Math.round(side.shots / 3);
-    const goals = M.binomial(perShots, side.goalRate);
+    const goals = M.binomial(perShots, side.goalRate * ES_SCALE);
     if (side.self.user) attribute(side, goals, perShots, per);
     return goals;
   }
@@ -145,7 +184,7 @@
   function row(st, id) { if (!st[id]) st[id] = { g: 0, a: 0, s: 0, hits: 0, blk: 0, pm: 0, pim: 0 }; return st[id]; }
   const T = p => M.typeOf(p);
 
-  function attribute(side, goals, shots, per) {
+  function attribute(side, goals, shots, per, tag) {
     const Tn = D.TUNING, self = side.self, oppD = side.opp.D, st = side.stats;
     const lw = self.lines.map(l => {
       let w = l.w;
@@ -173,7 +212,7 @@
       else scorer = line.ps[M.weightedIndex(usage(line, oppD, Tn))];
       row(st, scorer.id).g++;
       const onIce = line.ps.concat(pair.ps);
-      onIce.forEach(p => row(st, p.id).pm++);
+      if (tag !== 'pp') onIce.forEach(p => row(st, p.id).pm++);
 
       // assists: weighted by passing and the player's role; quarterbacks take the primary
       let a1 = null, a2 = null;
@@ -189,7 +228,7 @@
           row(st, a2.id).a++;
         }
       }
-      side.list.push({ per, sc: scorer.id, a1: a1 && a1.id, a2: a2 && a2.id });
+      side.list.push({ per, sc: scorer.id, a1: a1 && a1.id, a2: a2 && a2.id, tag: tag || null });
     }
   }
 
@@ -202,8 +241,9 @@
     const nb = M.ri(6, 15);
     for (let i = 0; i < nb; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'defense')), 1.2) * T(x).blk * (x.pos === 'D' ? 1.6 : 1)))].id).blk++;
     sk.forEach(p => {
-      const chance = Math.min(0.6, 0.12 * T(p).pim * (0.6 + M.eff(p, 'grit') / 60));
-      if (M.rand() < chance) row(st, p.id).pim += (p.type === 'enforcer' && M.rand() < 0.35) ? 5 : 2;
+      // minors come from the power-play model; fights (five minutes, no power play) stay here
+      const fight = p.type === 'enforcer' ? 0.16 : p.type === 'power' ? 0.04 : 0.01;
+      if (M.rand() < fight) row(st, p.id).pim += 5;
     });
   }
 

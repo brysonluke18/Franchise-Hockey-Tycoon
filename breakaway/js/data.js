@@ -186,7 +186,7 @@
   };
 
   // ---------------------------------------------------------------- player types
-  // str: attributes that reach the full rarity cap; weak: capped lower. Legendary lifts everything to 99.
+  // str: attributes that reach the full rarity cap; weak: capped lower. Legendary keeps the shape (strengths 99).
   // goal/ast/pim/hits/blk scale how the sim hands out those stats.
   const TYPES = {
     sniper: { n: 'Sniper', ab: 'SNP', g: 'F', str: ['shooting', 'hands'], weak: ['defense', 'grit'], goal: 1.4, ast: 0.85, pim: 0.5, hits: 0.6, blk: 0.6, d: 'Lives to shoot. Scores the most, defends the least.' },
@@ -228,12 +228,12 @@
   // ---------------------------------------------------------------- x-factors (no slot below rare; a second at legendary)
   const XFACTORS = [
     { k: 'workhorse', n: 'Workhorse', r: 'uncommon', pos: 'skater', d: 'Ignores the third-period fatigue penalty.' },
-    { k: 'heavyshot', n: 'Heavy Shot', r: 'rare', pos: 'skater', d: '+8% goal probability on this player’s shots.' },
-    { k: 'shutdown', n: 'Shutdown', r: 'rare', pos: 'skater', d: 'Opposing top line shoots 3% less.' },
-    { k: 'playmaker', n: 'Quarterback', r: 'epic', pos: 'skater', d: 'Takes primary assists for the line; line Passing counts 1.03x.' },
+    { k: 'heavyshot', n: 'Heavy Shot', r: 'rare', pos: 'skater', d: 'Gets about 8% more of his line’s goals.' },
+    { k: 'shutdown', n: 'Shutdown', r: 'rare', pos: 'skater', d: 'The opposing offense plays 3% weaker.' },
+    { k: 'playmaker', n: 'Quarterback', r: 'epic', pos: 'skater', d: 'Takes the primary assist on goals he is on the ice for; his line’s offense +3%.' },
     { k: 'gloveflash', n: 'Glove Flash', r: 'epic', pos: 'goalie', d: 'Save percentage +.006.' },
-    { k: 'franchise', n: 'Franchise', r: 'legendary', pos: 'skater', d: 'Offensive share computed as if this line were line 1.' },
-    { k: 'generational', n: 'Generational', r: 'legendary', pos: 'skater', d: 'Scoring share scales with Overall above the opposition.' }
+    { k: 'franchise', n: 'Franchise', r: 'legendary', pos: 'skater', d: 'His line gets first-line ice time, wherever it sits.' },
+    { k: 'generational', n: 'Generational', r: 'legendary', pos: 'skater', d: 'Takes an even bigger share of the scoring the more he outclasses the opposition.' }
   ];
 
   // ---------------------------------------------------------------- boosts

@@ -71,71 +71,101 @@
   }
 
   // ---------------------------------------------------------------- crests & jerseys
+  // Each crest is drawn in three layers: the silhouette (main colour), cut-out detail (background colour)
+  // and a top layer back in the main colour (a bear's nose, for instance). Keys stay the same for saves.
   const CREST = {
-    shield: '<path d="M50 6 88 20v34c0 24-19 36-38 44C31 90 12 78 12 54V20z"/>',
-    circle: '<circle cx="50" cy="50" r="42"/>',
-    diamond: '<path d="M50 6 94 50 50 94 6 50z"/>',
-    star: '<path d="M50 5 62 38h35L69 59l11 34-30-21-30 21 11-34L4 38h35z"/>',
-    wing: '<path d="M8 40c26-16 58-16 84 0-14 4-24 10-30 18 14 2 24 7 30 14-30 10-60 6-84-10z"/>',
-    anchor: '<path d="M44 14h12v20h16v12H56v40c14-2 24-11 27-24l11 4c-6 22-22 34-44 34S12 88 6 66l11-4c3 13 13 22 27 24V46H28V34h16z"/>',
-    bolt: '<path d="M58 4 22 56h22l-6 40 38-56H54z"/>',
-    leaf: '<path d="M50 6c16 20 34 26 34 46S68 92 50 94C32 92 16 72 16 52S34 26 50 6z"/>',
-    bear: '<circle cx="28" cy="24" r="12"/><circle cx="72" cy="24" r="12"/><path d="M50 22c22 0 34 16 34 36S70 92 50 92 16 78 16 58s12-36 34-36z"/>',
-    wolf: '<path d="M14 18 34 34h32l20-16-4 34c0 22-16 38-36 38S10 74 10 52z"/>',
-    hawk: '<path d="M50 8c20 0 34 14 34 32 0 22-18 36-34 52C34 76 16 62 16 40 16 22 30 8 50 8z"/>',
-    flame: '<path d="M50 4c6 20 26 26 26 48 0 22-12 42-26 42S24 74 24 52c0-14 10-20 14-30 4 10 10 12 12 4 2-8 0-14 0-22z"/>'
+    shield: ['<path d="M50 5 88 17v33c0 25-18 39-38 46C30 89 12 75 12 50V17z"/>',
+      '<path d="M50 14 80 23v12L50 26 20 35V23z"/><path d="M22 46 50 37l28 9v10L50 47l-28 9z"/>', ''],
+    circle: ['<ellipse cx="58" cy="40" rx="34" ry="13"/><rect x="24" y="40" width="68" height="22"/><ellipse cx="58" cy="62" rx="34" ry="13"/><rect x="2" y="36" width="16" height="5" rx="2.5"/><rect x="6" y="48" width="12" height="5" rx="2.5"/><rect x="2" y="60" width="16" height="5" rx="2.5"/>',
+      '<ellipse cx="58" cy="40" rx="28" ry="9" fill="none" stroke="currentColor" stroke-width="3"/>', ''],
+    diamond: ['<path d="M50 3 97 50 50 97 3 50z"/>',
+      '<path d="M50 19 81 50 50 81 19 50z" fill="none" stroke="currentColor" stroke-width="5"/><path d="M50 36 64 50 50 64 36 50z"/>', ''],
+    star: ['<path d="M50 4 62 37h35L69 58l11 35-30-21-30 21 11-35L3 37h35z"/>',
+      '<path d="M50 28 56 44h17L59 54l5 17-14-10-14 10 5-17-14-10h17z"/>', ''],
+    wing: ['<ellipse cx="70" cy="62" rx="24" ry="9"/><rect x="46" y="62" width="48" height="12"/><ellipse cx="70" cy="74" rx="24" ry="9"/>' +
+      '<path d="M58 60C42 56 22 46 4 26c9 2 18 4 26 3C20 23 13 15 9 5c13 8 26 12 39 13-4-6-5-10-5-15 13 9 22 24 25 41C62 50 60 56 58 60z"/>',
+      '<path d="M18 30c12 9 26 16 40 22M30 18c10 11 20 20 32 30M46 14c6 9 12 20 16 30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><ellipse cx="70" cy="62" rx="18" ry="5.5" fill="none" stroke="currentColor" stroke-width="2.5"/>', ''],
+    anchor: ['<circle cx="50" cy="13" r="10"/><rect x="45" y="21" width="10" height="62"/><rect x="28" y="30" width="44" height="9" rx="4.5"/>' +
+      '<path d="M12 54 22 46l8 13h-6c3 13 13 21 26 22 13-1 23-9 26-22h-6l8-13 10 8c-2 23-19 40-38 41C31 94 14 77 12 54z"/>',
+      '<circle cx="50" cy="13" r="4.5"/>', ''],
+    bolt: ['<path d="M62 2 18 56h26L32 98 84 38H56L72 2z"/>', '<path d="M60 12 36 46h16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>', ''],
+    leaf: ['<path d="M50 3 58 19l8-4-2 21 14-12 2 8 14-2-6 14 8 4-22 16 4 8-24-4v28h-8V68l-24 4 4-8L4 48l8-4-6-14 14 2 2-8 14 12-2-21 8 4z"/>', '', ''],
+    bear: ['<circle cx="22" cy="26" r="14"/><circle cx="78" cy="26" r="14"/><ellipse cx="50" cy="57" rx="37" ry="35"/>',
+      '<circle cx="22" cy="26" r="6.5"/><circle cx="78" cy="26" r="6.5"/><ellipse cx="36" cy="50" rx="4.5" ry="5"/><ellipse cx="64" cy="50" rx="4.5" ry="5"/><ellipse cx="50" cy="71" rx="16" ry="13"/>',
+      '<path d="M42 63c0-3 4-5 8-5s8 2 8 5-4 6-8 6-8-3-8-6z"/><path d="M50 69v6M43 78c4 3 10 3 14 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'],
+    wolf: ['<path d="M12 4 38 28h24L88 4l2 42c0 16-12 30-24 40L50 98 34 86C22 76 10 62 10 46z"/>',
+      '<path d="M20 15 34 30l-12 4zM80 15 66 30l12 4z"/><path d="M26 47l16 4-2 5-14-4zM74 47l-16 4 2 5 14-4z"/><path d="M42 78h16l-8 9z"/><path d="M50 36v34" fill="none" stroke="currentColor" stroke-width="3" opacity=".6"/>', ''],
+    hawk: ['<path d="M22 96c-2-14-6-24-14-32l14-2C16 54 12 48 6 42h18C26 24 42 10 60 10c18 0 32 12 36 30 1 10-5 18-12 22 2-8 0-12-4-14l-10 2c-4 16-10 30-14 46z"/>',
+      '<circle cx="66" cy="30" r="5.5"/><path d="M50 22h30l-4 5H52z"/><path d="M78 42c5 2 10 2 16 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>', '<circle cx="67" cy="30" r="2.2"/>'],
+    flame: ['<path d="M50 2c8 18 26 26 28 50 2 24-12 44-28 44S20 82 20 62c0-16 10-24 14-34 4 10 8 14 12 12 4-10 0-22 4-38z"/>',
+      '<path d="M50 48c6 10 14 16 12 30-2 10-8 14-12 14-6 0-12-6-12-14 0-10 8-14 12-30z"/>', '']
   };
-  function crestSVG(kind, c, size) {
+  // c: main colour, bg: the colour behind the crest (used for cut-outs; a darker tint when unknown)
+  function crestInner(kind, c, bg) {
+    const cr = CREST[kind] || CREST.shield, b = bg || 'rgba(0,0,0,.38)';
+    return '<g fill="' + c + '">' + cr[0] + '</g><g fill="' + b + '" color="' + b + '">' + cr[1] + '</g><g fill="' + c + '" color="' + c + '">' + cr[2] + '</g>';
+  }
+  function crestSVG(kind, c, size, bg) {
     const s = size || 30;
-    return '<svg viewBox="0 0 100 100" width="' + s + '" height="' + s + '" fill="' + c + '" aria-hidden="true">' + (CREST[kind] || CREST.shield) + '</svg>';
+    return '<svg viewBox="0 0 100 100" width="' + s + '" height="' + s + '" aria-hidden="true">' + crestInner(kind, c, bg) + '</svg>';
   }
   let jseq = 0;
   // team logo: the crest set in a roundel, a shield, or on its own, with the club abbreviation
   function logoSVG(k, size) {
     const s = size || 60, st = k.lstyle || 'roundel', ab = (k.abbr || '').slice(0, 3).toUpperCase();
-    const crest = (col, sc, tx, ty) => '<g transform="translate(' + tx + ' ' + ty + ') scale(' + sc + ')" fill="' + col + '">' + (CREST[k.crest] || CREST.shield) + '</g>';
+    const crest = (col, bg, sc, tx, ty) => '<g transform="translate(' + tx + ' ' + ty + ') scale(' + sc + ')">' + crestInner(k.crest, col, bg) + '</g>';
+    const txt = (y, fs, col) => ab ? '<text x="50" y="' + y + '" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="' + fs + '" letter-spacing="1.5" fill="' + col + '">' + ab + '</text>' : '';
     let h = '<svg viewBox="0 0 100 100" width="' + s + '" height="' + s + '" aria-hidden="true">';
     if (st === 'shield') {
-      h += '<path d="M50 3 93 17v35c0 27-21 40-43 46C28 92 7 79 7 52V17z" fill="' + k.c3 + '"/>' +
-        '<path d="M50 9 87 21v31c0 23-18 34-37 40C31 86 13 75 13 52V21z" fill="' + k.c1 + '"/>' +
-        '<path d="M50 14 82 24v28c0 20-15 30-32 35C33 82 18 72 18 52V24z" fill="none" stroke="' + k.c2 + '" stroke-width="1.6" opacity=".55"/>' +
-        crest(k.c2, 0.42, 29, 18) +
-        (ab ? '<text x="50" y="78" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="15" letter-spacing="1.5" fill="' + k.c2 + '">' + ab + '</text>' : '');
+      h += '<path d="M50 3 93 16v34c0 27-20 41-43 47C27 91 7 77 7 50V16z" fill="' + k.c3 + '"/>' +
+        '<path d="M50 9 87 20v30c0 23-17 35-37 41C30 85 13 73 13 50V20z" fill="' + k.c1 + '"/>' +
+        '<path d="M13 63h74v11H13z" fill="' + k.c2 + '"/>' +
+        crest(k.c2, k.c1, 0.42, 29, 17) + txt(72.5, 11, k.c1);
     } else if (st === 'crest') {
-      h += crest(k.c3, 0.96, 2, 2) + crest(k.c1, 0.84, 8, 8) + crest(k.c2, 0.4, 30, 30);
+      // the emblem on its own, with a keyline so it reads on any background
+      h += '<g transform="translate(50 50) scale(1.07) translate(-50 -50)">' + crestInner(k.crest, k.c3, k.c3) + '</g>' + crest(k.c1, k.c2, 0.92, 4, 4);
     } else {
-      h += '<circle cx="50" cy="50" r="47" fill="' + k.c3 + '"/><circle cx="50" cy="50" r="42" fill="' + k.c1 + '"/>' +
-        '<circle cx="50" cy="50" r="36" fill="none" stroke="' + k.c2 + '" stroke-width="1.8"/>' +
-        crest(k.c2, 0.44, 28, 17) +
-        (ab ? '<text x="50" y="80" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="14" letter-spacing="2" fill="' + k.c2 + '">' + ab + '</text>' : '');
+      h += '<circle cx="50" cy="50" r="48" fill="' + k.c3 + '"/><circle cx="50" cy="50" r="43" fill="' + k.c1 + '"/>' +
+        '<circle cx="50" cy="50" r="35" fill="none" stroke="' + k.c2 + '" stroke-width="2"/>' +
+        crest(k.c2, k.c1, 0.46, 27, 15) + txt(81, 12, k.c2);
     }
     return h + '</svg>';
   }
+  // a hockey sweater: boxy body, sleeves angled down to the cuffs, laced V-neck collar, elbow and hem stripes
+  const J_BODY = 'M58 10H92l28 9c11 4 18 11 20 22l8 47-25 10-9-38 2 96c0 4-3 6-6 6H40c-3 0-6-2-6-6l2-96-9 38L2 88l8-47c2-11 9-18 20-22z';
+  // a band across the left sleeve, parallel to the cuff, `up` units above it; mirrored for the right sleeve
+  function sleeveBand(up, h, col) {
+    const a = 'M' + (2 + up * 0.05).toFixed(2) + ' ' + (88 - up) + 'l25 10v' + (-h) + 'l-25-10z';
+    return '<path d="' + a + '" fill="' + col + '"/><path d="' + a + '" fill="' + col + '" transform="translate(150 0) scale(-1 1)"/>';
+  }
   function jerseySVG(k, w, num) {
-    const W = w || 150, H = Math.round(W * 1.12), id = 'jc' + (++jseq);
-    const p = k.pattern;
+    const W = w || 150, H = Math.round(W * 1.12), id = 'jc' + (++jseq), p = k.pattern;
+    const hem = (y, h, col) => '<rect x="0" y="' + y + '" width="150" height="' + h + '" fill="' + col + '"/>';
+    const SH = 'M30 19 58 10v20L34 44 12 54l-4-6c2-14 10-24 22-29z';
     let marks = '';
-    if (p === 'yoke') marks = '<path d="M38 24h74c8 8 12 18 13 28H25c1-10 5-20 13-28z" fill="' + k.c2 + '"/>';
-    if (p === 'double') marks = '<rect x="18" y="104" width="114" height="9" fill="' + k.c2 + '"/><rect x="18" y="119" width="114" height="9" fill="' + k.c3 + '"/>';
-    if (p === 'shoulder') marks = '<path d="M24 28c8-6 18-9 26-10v26H21z" fill="' + k.c2 + '"/><path d="M126 28c-8-6-18-9-26-10v26h29z" fill="' + k.c2 + '"/>';
-    if (p === 'barber') { for (let i = 0; i < 7; i++) marks += '<rect x="' + (18 + i * 17) + '" y="18" width="8" height="132" fill="' + (i % 2 ? k.c2 : k.c3) + '" opacity=".85"/>'; }
-    if (p === 'sash') marks = '<path d="M28 22 128 132l-16 12L14 36z" fill="' + k.c2 + '" opacity=".92"/>';
-    const body = 'M55 12h40c3 9 10 14 20 14l26 12c5 2 7 7 5 12l-10 26c-1 5-6 7-11 5l-8-3v68c0 5-4 8-9 8H42c-5 0-9-3-9-8V78l-8 3c-5 2-10 0-11-5L4 50c-2-5 0-10 5-12l26-12c10 0 17-5 20-14z';
+    if (p === 'plain') marks = hem(140, 6, k.c2) + sleeveBand(12, 6, k.c2) + sleeveBand(0, 6, k.c3);
+    if (p === 'yoke') marks = '<path d="M0 0h150v44c-22 9-48 12-75 12S22 53 0 44z" fill="' + k.c2 + '"/><path d="M0 44c22 9 48 12 75 12s53-3 75-12v4c-22 9-48 12-75 12S22 57 0 48z" fill="' + k.c3 + '"/>' + hem(138, 7, k.c2) + sleeveBand(14, 7, k.c2);
+    if (p === 'double') marks = hem(122, 8, k.c2) + hem(134, 8, k.c3) + hem(146, 6, k.c2) + sleeveBand(22, 6, k.c2) + sleeveBand(14, 6, k.c3) + sleeveBand(6, 5, k.c2);
+    if (p === 'shoulder') marks = '<path d="' + SH + '" fill="' + k.c2 + '"/><path d="' + SH + '" fill="' + k.c2 + '" transform="translate(150 0) scale(-1 1)"/>' + hem(136, 10, k.c2) + sleeveBand(10, 10, k.c2);
+    if (p === 'barber') { for (let i = 0; i < 6; i++) marks += hem(70 + i * 15, 7, i % 2 ? k.c3 : k.c2); marks += sleeveBand(20, 7, k.c2) + sleeveBand(5, 7, k.c3); }
+    if (p === 'sash') marks = '<path d="M18 16h22l100 128v18h-18z" fill="' + k.c3 + '"/><path d="M24 16h12l104 132v8h-8z" fill="' + k.c2 + '"/>' + hem(146, 6, k.c2) + sleeveBand(10, 7, k.c2);
     return '<svg viewBox="0 0 150 168" width="' + W + '" height="' + H + '" aria-hidden="true">' +
-      '<defs><clipPath id="' + id + '"><path d="' + body + '"/></clipPath></defs>' +
-      '<path d="' + body + '" fill="' + k.c1 + '"/>' +
+      '<defs><clipPath id="' + id + '"><path d="' + J_BODY + '"/></clipPath></defs>' +
+      '<path d="' + J_BODY + '" fill="' + k.c1 + '"/>' +
       '<g clip-path="url(#' + id + ')">' + marks +
-      '<path d="M4 50 14 76 25 72 33 78" fill="none" stroke="' + k.c3 + '" stroke-width="5" opacity=".5"/>' +
-      '<path d="M146 50 136 76 125 72 117 78" fill="none" stroke="' + k.c3 + '" stroke-width="5" opacity=".5"/></g>' +
-      '<path d="M55 12c3 9 10 14 20 14s17-5 20-14" fill="none" stroke="' + k.c3 + '" stroke-width="5"/>' +
-      '<path d="' + body + '" fill="none" stroke="' + k.c3 + '" stroke-width="3"/>' +
+      // side seams and armpit creases so it reads as cloth
+      '<path d="M36 60c1 30 0 62-2 100M114 60c-1 30 0 62 2 100" stroke="rgba(0,0,0,.18)" stroke-width="3" fill="none"/>' +
+      '<path d="M27 98 36 60M123 98 114 60" stroke="rgba(0,0,0,.25)" stroke-width="2" fill="none"/></g>' +
+      // laced V-neck collar
+      '<path d="M56 9h38L75 40z" fill="' + k.c3 + '"/><path d="M63 11h24L75 32z" fill="' + k.c1 + '"/>' +
+      '<path d="M67 16h16M69 21h12M71 26h8" stroke="' + k.c2 + '" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<path d="' + J_BODY + '" fill="none" stroke="' + k.c3 + '" stroke-width="3" stroke-linejoin="round"/>' +
       (num != null
-        ? '<text x="75" y="118" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="52" fill="' + k.c2 + '" stroke="' + k.c3 + '" stroke-width="2.5" paint-order="stroke">' + num + '</text>'
-        : '<g transform="translate(53 56) scale(.44)">' + crestSVG(k.crest, k.c2, 100) + '</g>') +
+        ? '<text x="75" y="110" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="50" fill="' + k.c2 + '" stroke="' + k.c3 + '" stroke-width="2.5" paint-order="stroke">' + num + '</text>'
+        : '<g transform="translate(51 60) scale(.48)">' + crestInner(k.crest, k.c2, k.c1) + '</g>') +
       '</svg>';
   }
 
-  // ---------------------------------------------------------------- portraits
   const SKIN = ['#f5d2b6', '#ecbb94', '#d9a073', '#bb7f52', '#8f5c38', '#5f3b23'];
   const HAIR = ['#1b1410', '#3a2516', '#5e3a1e', '#8c5a26', '#c99b52', '#d9c08a', '#7d7d7d', '#a3401f'];
   function shade(hex, f) {
@@ -259,7 +289,7 @@
   function teamBadge(name, size) {
     const s = size || 22, hsh = hash(name);
     const crest = D.CRESTS[(hsh >> 4) % D.CRESTS.length];
-    return '<span class="tb" style="width:' + s + 'px;height:' + s + 'px;background:' + teamColor(name) + '">' + crestSVG(crest, '#fff', Math.round(s * 0.62)) + '</span>';
+    return '<span class="tb" style="width:' + s + 'px;height:' + s + 'px;background:' + teamColor(name) + '">' + crestSVG(crest, '#fff', Math.round(s * 0.62), teamColor(name)) + '</span>';
   }
 
   function rarityColor(k) { return D.RARITY[D.RIDX[k]].color; }

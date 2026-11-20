@@ -176,26 +176,57 @@
   // ---------------------------------------------------------------- one game
   // simulated up front (prepare) so the rink panel can play it out, folded in when its clock runs out (commit)
   function nameOf(id) { const p = id && byId(id); return p ? p.name.split(' ').slice(1).join(' ') || p.name : null; }
+  // how a goal went in, shaped by who scored it (shown on the live pop-up)
+  const GOAL_KINDS = {
+    sniper: ['BAR DOWN!', 'TOP SHELF!', 'SNIPE!', 'ONE-TIMER!', 'PICKED THE CORNER!'],
+    playmaker: ['BACKHAND!', 'WRAPAROUND!', 'WHAT A DEKE!', 'FIVE-HOLE!', 'SAUCER FINISH!'],
+    power: ['TIP-IN!', 'REBOUND!', 'SLAPSHOT!', 'POWER MOVE!', 'CRASHED THE NET!'],
+    twoway: ['WRISTER!', 'BREAKAWAY!', 'FIVE-HOLE!', 'OFF THE FORECHECK!'],
+    enforcer: ['GARBAGE GOAL!', 'REBOUND!', 'TIP-IN!', 'OFF THE SKATE!'],
+    ofd: ['FROM THE POINT!', 'SLAPSHOT!', 'ONE-TIMER!', 'PINCHED IN!'],
+    dfd: ['FROM THE POINT!', 'SEEING-EYE SHOT!', 'SLAPSHOT!'],
+    twd: ['FROM THE POINT!', 'WRISTER!', 'ONE-TIMER!']
+  };
+  function goalKind(id, tag, ot) {
+    if (ot) return 'OT WINNER!';
+    if (tag === 'sh') return 'SHORTY!';
+    if (tag === 'pp' && M.rand() < 0.35) return 'POWER PLAY GOAL!';
+    const p = id && byId(id), l = GOAL_KINDS[p && p.type] || GOAL_KINDS.twoway;
+    return l[M.ri(0, l.length - 1)];
+  }
+  // the game as timed events: goals, penalties (two-minute power plays), pop-up highlights.
+  // Power-play goals land inside their penalty; everything else is spread through the period.
   function timeline(res, A) {
-    const ev = [];
+    const ev = [], rt = per => per * 20 + 0.6 + M.rand() * 19;
+    const pens = (res.pens || []).map(p => Object.assign({}, p, { t: p.per * 20 + 0.8 + M.rand() * 17, who: nameOf(p.pid) }));
+    pens.forEach(p => { p.end = p.t + 2; });
+    const inPen = p => p.t + 0.15 + M.rand() * 1.75;
     const mine = (res.a.list || []).slice();
     res.periods.forEach((p, i) => {
       const myPer = mine.filter(g => g.per === i);
       for (let k = 0; k < p.a; k++) {
-        const g = myPer[k] || {};
-        ev.push({ t: i * 20 + 0.6 + M.rand() * 19, s: 'a', sc: nameOf(g.sc), a1: nameOf(g.a1), a2: nameOf(g.a2), scId: g.sc });
+        const g = myPer[k] || {}, pen = g.pen != null ? pens[g.pen] : null, t = pen ? inPen(pen) : rt(i);
+        if (pen && !pen.sh) pen.end = t;
+        ev.push({ t, s: 'a', sc: nameOf(g.sc), a1: nameOf(g.a1), a2: nameOf(g.a2), scId: g.sc, tag: g.tag || null, kind: goalKind(g.sc, g.tag) });
       }
-      for (let k = 0; k < p.b; k++) ev.push({ t: i * 20 + 0.6 + M.rand() * 19, s: 'b' });
+      // opponent goals: first the ones scored on their power plays / short-handed, then the rest
+      const theirs = pens.filter(x => x.per === i && x.g === 'b');
+      for (let k = 0; k < p.b; k++) {
+        const pen = theirs[k], t = pen ? inPen(pen) : rt(i);
+        if (pen && !pen.sh) pen.end = t;
+        ev.push({ t, s: 'b', tag: pen ? (pen.sh ? 'sh' : 'pp') : null });
+      }
     });
     let total = 60;
     if (res.ot) {
       const s = res.a.goals > res.b.goals ? 'a' : 'b';
       const g = mine.find(x => x.per === 3) || {};
       if (res.so) { ev.push({ t: 65, s, so: true }); total = 65.2; }
-      else { const t = 60.3 + M.rand() * 4.4; ev.push({ t, s, ot: true, sc: s === 'a' ? nameOf(g.sc) : null, a1: s === 'a' ? nameOf(g.a1) : null }); total = t + 0.05; }
+      else { const t = 60.3 + M.rand() * 4.4; ev.push({ t, s, ot: true, sc: s === 'a' ? nameOf(g.sc) : null, a1: s === 'a' ? nameOf(g.a1) : null, scId: s === 'a' ? g.sc : null, kind: s === 'a' ? goalKind(g.sc, null, true) : null }); total = t + 0.05; }
     }
     ev.sort((x, y) => x.t - y.t);
-    return { ev, total, hl: highlights(res, A, ev) };
+    pens.sort((x, y) => x.t - y.t);
+    return { ev, total, pens, hl: highlights(res, A, ev) };
   }
   // cartoon pop-ups during the live game: big hits by your skaters, big saves by your goalie.
   // They land away from goals so the GOAL! banner never collides with one.
@@ -218,7 +249,7 @@
     const opp = teamById(oppId);
     const A = rateMe(false);
     const res = S.simGame(A, S.rateAI(opp), divRef(), {});
-    S.applyMinus(res.a.stats, A, res.b.goals);
+    S.applyMinus(res.a.stats, A, res.b.goals - (res.b.ppg || 0));
     return { kind: 'season', idx: st.gameIndex, season: st.season, oppId, oppName: opp.name, oppAbbr: opp.abbr, A, res, tl: timeline(res, A) };
   }
   function playNextGame() {
@@ -391,7 +422,7 @@
     const opp = Object.assign({}, po.opp);
     opp.O += po.bump; opp.D += po.bump; opp.G += po.bump;
     const res = S.simGame(A, S.rateAI(opp), divRef(), { edge: 1.05 });
-    S.applyMinus(res.a.stats, A, res.b.goals);
+    S.applyMinus(res.a.stats, A, res.b.goals - (res.b.ppg || 0));
     return { kind: 'playoff', round: po.round, game: po.log.length, oppName: po.opp.name, oppAbbr: po.opp.abbr, A, res, tl: timeline(res, A) };
   }
   function playPlayoffGame() { return commitPlayoff(preparePlayoff()); }
@@ -445,16 +476,15 @@
   // championship package; the player is always better than the team's average
   const CUP = {
     8: { gear: [2, 'uncommon'], player: ['uncommon', 'F'] }, 7: { gear: [2, 'uncommon'], player: ['rare', 'D'] },
-    6: { gear: [1, 'rare'], player: ['rare', 'S'] }, 5: { gear: [2, 'rare'], player: ['epic', 'G'], xf: 'rare' },
+    6: { gear: [1, 'rare'], player: ['rare', 'S'] }, 5: { gear: [3, 'rare'], player: ['epic', 'G'] },
     4: { gear: [3, 'rare'], player: ['legendary', 'S'] }, 3: { gear: [2, 'epic'], player: ['legendary', 'S'] },
-    2: { gear: [3, 'epic'], player: ['legendary', 'G'], xf: 'epic' }, 1: { gear: [1, 'legendary'], player: ['legendary', 'A'] }
+    2: { gear: [4, 'epic'], player: ['legendary', 'G'] }, 1: { gear: [1, 'legendary'], player: ['legendary', 'A'] }
   };
   function championshipRewards() {
     const c = CUP[st.div], got = [];
     let rarity = c.player[0];
     if (st.totals.cups === 1) rarity = D.RARITY[Math.max(D.RIDX[rarity], 2)].k;   // first title: at least a rare
     for (let n = 0; n < c.gear[0]; n++) { const g = M.makeGear(c.gear[1], M.rand() < 0.1 ? 'goalie' : 'skater'); st.gear.push(g); got.push(M.gearName(g)); }
-    if (c.xf) { const x = M.pick(D.XFACTORS.filter(x => x.r === c.xf)); st.xfs.push(x.k); got.push(x.n + ' trait'); }
     const round = Math.max(1, Math.min(5, Math.ceil(st.div / 1.6)));
     addPick(round); got.push(ord(round) + '-round draft pick');
     const posName = { F: 'forward', D: 'defenseman', G: 'goalie', S: 'skater', A: 'player' }[c.player[1]];
@@ -629,7 +659,7 @@
     const p = byId(playerId);
     if (!p || p.rarity !== 'epic') return false;
     p.rarity = 'legendary'; st.legendBuys = (st.legendBuys || 0) + 1;
-    toast(p.name + ' is now Legendary. Every cap is 99 and a second trait slot is open.', 'gold');
+    toast(p.name + ' is now Legendary. His strengths can reach 99 (weaker skills a little lower, by type) and a second trait slot is open.', 'gold');
     save(); emit('roster'); return true;
   }
   function beginNextSeason() { startSeason(); save(); emit('newSeason', {}); }
@@ -674,9 +704,8 @@
     const pos = theme && theme.pool ? theme.pool : M.pick(['F', 'F', 'F', 'F', 'D', 'D', 'D', 'G']);
     opts.push({ t: 'shards', label: sp + ' shards', pos, n: sp });
     const roll = M.rand();
-    const xfPool = D.XFACTORS.filter(x => D.RIDX[x.r] <= Math.min(4, tier + 1));
-    if (roll < 0.25 && xfPool.length) { const x = M.pick(xfPool); opts.push({ t: 'xf', label: x.n, rarity: x.r, xf: x.k }); }
-    else if (roll < 0.5) { const b = M.pick(D.BOOSTS); opts.push({ t: 'boost', label: b.n, k: b.k, n: 1 + (tier >= 3 ? 1 : 0) }); }
+    // traits are Hall of Fame only now (franchise achievements), so picks never offer one
+    if (roll < 0.45) { const b = M.pick(D.BOOSTS); opts.push({ t: 'boost', label: b.n, k: b.k, n: 1 + (tier >= 3 ? 1 : 0) }); }
     else { const pk = Math.round(900 * payout() * (1 + tier)); opts.push({ t: 'pucks', label: fmt(pk) + ' pucks', n: pk }); }
     return { kind: 'pick', title, sub: 'Pick one. The other two are gone.', options: opts, tier, rerolled: false };
   }
@@ -781,7 +810,7 @@
     st.gear = st.gear.filter(g => out.indexOf(g) < 0);
     const g = smartGear(D.RARITY[D.RIDX[rk] + 1].k);
     st.gear.push(g);
-    toast('Traded 5 ' + rk + ' pieces for ' + M.gearName(g), 'promo');
+    toast('Fused 5 ' + rk + ' spares into ' + M.gearName(g), 'promo');
     save(); emit('roster'); return g;
   }
   // best gear to the best players: highest trained overall picks first in every slot.
@@ -1094,6 +1123,9 @@
     // Hall of Fame gear is forever: collect it from the locker and every player before the reset
     const hof = st.gear.filter(g => g.hof);
     st.team.roster.forEach(p => Object.keys(p.gear).forEach(k => { if (p.gear[k] && p.gear[k].hof) hof.push(p.gear[k]); }));
+    // traits are Hall of Fame rewards too: take them off every player and keep them in the locker
+    const traits = (st.xfs || []).slice();
+    st.team.roster.forEach(p => { if (p.xf) traits.push(p.xf); if (p.xf2) traits.push(p.xf2); });
     st.prestige = (st.prestige || 0) + 1;
     // Legacy players come back Legendary (full caps to grow into) but start just above the new roster:
     // about 5 Overall over the fresh team's average, Legacy bonus included
@@ -1118,7 +1150,7 @@
     st.team.roster = keep.concat(fresh);
     st.team.lineup = M.defaultLineup(st.team.roster);
     st.div = 8; st.promos = 0; st.eliteSeasons = 0;
-    st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = hof; st.picks = {}; st.xfs = [];
+    st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = hof; st.picks = {}; st.xfs = traits;
     st.fac = {}; applyFac(); st.pending = null; st.pickQueue = [];
     // a new franchise starts clean: coach skills, achievements and the Elite-title requirement all reset;
     // lifetime totals are kept for the franchise achievements
@@ -1253,7 +1285,7 @@
     { n: 'Gear', d: 'A piece of Rare-or-better gear' },
     { n: 'Tape', d: '60 tape and 15 defense shards' },
     { n: '3rd-rounder', d: 'A 3rd-round draft pick' },
-    { n: 'Jackpot', d: 'A 1st-round pick, 40 shards of each kind and a trait' }
+    { n: 'Jackpot', d: 'A 1st-round pick, 40 shards of each kind and a piece of gear' }
   ];
   function dailyState() { st.daily = st.daily || { day: 1, claimed: 0, last: null, ready: false }; return st.daily; }
   function checkDaily() {
@@ -1272,7 +1304,7 @@
     if (day === 4) return { gear: true };
     if (day === 5) return { tape: 60, shards: { D: 15 } };
     if (day === 6) return { pick: 3 };
-    return { pick: 1, shards: { F: 40, D: 40, G: 40 }, trait: true };
+    return { pick: 1, shards: { F: 40, D: 40, G: 40 }, gear: true };
   }
   function claimDaily() {
     const d = dailyState();
@@ -1284,7 +1316,6 @@
     if (r.boost) { st.boosts[r.boost] = (st.boosts[r.boost] || 0) + 1; got.push(D.BOOSTS.find(b => b.k === r.boost).n + ' boost'); }
     if (r.gear) { const ri = Math.min(4, Math.max(2, D.PROMO_CAP[st.div])); const g = smartGear(D.RARITY[ri].k); st.gear.push(g); got.push(M.gearName(g)); }
     if (r.pick) { addPick(r.pick); got.push('a ' + ord(r.pick) + '-round pick'); }
-    if (r.trait) { const x = M.pick(D.XFACTORS.filter(x => D.RIDX[x.r] <= 3)); st.xfs.push(x.k); got.push(x.n + ' trait'); }
     d.ready = false; d.claimed = d.day; d.last = new Date().toDateString();
     toast('Day ' + d.day + ': ' + got.join(', '), 'promo');
     save(); emit('roster');

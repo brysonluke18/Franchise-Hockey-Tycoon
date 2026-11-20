@@ -224,7 +224,7 @@
 
   // ------------------------------------------------------------ SEASON
   function badgeFor(t, s) {
-    if (t.id === 'me') { const k = team(); return '<span class="tb" style="width:' + s + 'px;height:' + s + 'px;background:' + k.c1 + '">' + crestSVG(k.crest, k.c2, Math.round(s * .62)) + '</span>'; }
+    if (t.id === 'me') { const k = team(); return '<span class="tb" style="width:' + s + 'px;height:' + s + 'px;background:' + k.c1 + '">' + crestSVG(k.crest, k.c2, Math.round(s * .62), k.c1) + '</span>'; }
     return A.teamBadge(t.name, s);
   }
   function renderSeason() {
@@ -247,8 +247,8 @@
         (lastS ? '<h2 class="big-title">' + (champ ? 'Champions' : esc(lastS.result)) + '</h2><p class="sub">Season ' + lastS.season + ' · ' + esc(lastS.divName) + ' · ' + lastS.w + '-' + lastS.l + '-' + lastS.otl + '</p>' : '') +
         (champ && lastS.div > 1 ? '<p class="sub">Promoted to <b>' + esc(d.n) + '</b>. Expect a season of catching up.</p>' : champ ? '<p class="sub">Elite champions. The league will be gunning for you.</p>' : '<p class="sub">Nothing is lost. Roster, pucks and gear carry over.</p>') +
         '<button class="btn primary big" data-act="nextseason">Start season ' + st.season + '</button></section>';
-      if (ST.canPrestige()) h += '<section class="panel prest"><div class="eyebrow">Prestige ' + ((st.prestige || 0) + 1) + ' available</div><h3>Start over as a dynasty</h3>' +
-        '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players come back Legendary, starting about 5 Overall above the new roster, and keep their trophies plus +2 to every attribute per franchise they carry. Coach skills, achievements and dailies start over. Hall of Fame gear, chemistry and franchise achievements carry over.</p>' +
+      if (ST.canPrestige()) h += '<section class="panel prest"><div class="eyebrow">Franchise ' + ((st.prestige || 0) + 2) + ' available</div><h3>Start a new franchise</h3>' +
+        '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players come back Legendary, starting about 5 Overall above the new roster, and keep their trophies plus +2 to every attribute per franchise they carry. Coach skills, achievements and dailies start over. Hall of Fame gear, traits, chemistry and franchise achievements carry over.</p>' +
         '<button class="btn gold" data-act="prestige">' + ic('trophy', 16) + ' Choose Legacy players</button></section>';
     }
     if (feed.length) h += sh('Results') + '<div class="feed">' + feed.slice(0, 20).map(f => '<span class="fchip ' + (f.win ? 'w' : 'l') + '"><b>' + (f.win ? 'W' : 'L') + '</b>' + f.gf + '–' + f.ga + (f.ot ? '<i>' + (f.so ? 'SO' : 'OT') + '</i>' : '') + '<em>' + esc(f.oppAbbr) + '</em></span>').join('') + '</div>';
@@ -311,7 +311,7 @@
       '<span class="lv-clock"><b id="lvPer">—</b><i id="lvTime"></i></span>' +
       '<span class="lv-side r"><em id="lvB">0</em><b>' + (lv ? esc(lv.pre.oppAbbr) : '—') + '</b>' + (lv ? A.teamBadge(lv.pre.oppName, 24) : '') + '</span></div>' +
       '<div class="lv-rink"><canvas id="lvCanvas" class="lv-canvas"></canvas><div id="lvPop" class="lv-pop" aria-live="polite"></div></div>' +
-      '<div class="lv-bot"><span>' + esc(label) + (lv ? ' · ' + esc(lv.pre.oppName) : '') + '</span><span id="lvShots" class="num"></span></div>' +
+      '<div class="lv-bot"><span>' + esc(label) + (lv ? ' · ' + esc(lv.pre.oppName) : '') + '</span><b id="lvPP" class="lv-pp"></b><span id="lvShots" class="num"></span></div>' +
       '<div class="lv-log" id="lvLog"></div>' +
       (playoff ? '<table class="lv-per"><thead><tr><th></th><th>1st</th><th>2nd</th><th>3rd</th><th>OT</th><th>T</th></tr></thead><tbody id="lvPerT"></tbody></table>' : '') + '</div>';
   }
@@ -319,9 +319,20 @@
   const POP_WORDS = { hit: ['BIG HIT!', 'BOOM!', 'CRUNCH!', 'WHAM!', 'LIGHTS OUT!'], save: ['BIG SAVE!', 'ROBBED!', 'DENIED!', 'WHAT A SAVE!', 'STONEWALLED!'] };
   function popHTML(h) {
     const p = ST.byId(h.id); if (!p) return '';
-    const w = POP_WORDS[h.k], word = w[Math.floor(h.t * 7) % w.length], side = Math.floor(h.t * 3) % 2 ? 'r' : 'l';
-    return '<div class="hlpop pop-' + h.k + ' ' + side + '"><span class="pop-face">' + A.portrait(p, team(), 54, rcol(p)) + '</span>' +
-      '<span class="pop-burst"><b>' + word + '</b><i>' + esc(last(p)) + (h.k === 'save' ? ' · G' : ' · #' + (p.num || '')) + '</i></span></div>';
+    const w = POP_WORDS[h.k], word = h.word || w[Math.floor(h.t * 7) % w.length];
+    const sub = h.k === 'save' ? ' · G' : h.k === 'goal' ? (h.tag === 'pp' ? ' · PPG' : h.tag === 'sh' ? ' · SHG' : ' · #' + (p.num || '')) : ' · #' + (p.num || '');
+    return '<div class="hlpop pop-' + h.k + '"><span class="pop-face">' + A.portrait(p, team(), 42, rcol(p)) + '</span>' +
+      '<span class="pop-burst"><b>' + word + '</b><i>' + esc(last(p)) + sub + '</i></span></div>';
+  }
+  // place the pop-up on the player it is about: face on the spot, burst toward the middle of the rink
+  function placePop(el, a, at) {
+    const pop = el.firstChild; if (!pop || !a || !at) return;
+    const W = el.clientWidth, H = el.clientHeight, pw = pop.offsetWidth, ph = pop.offsetHeight, right = at.x > W / 2;
+    pop.classList.toggle('r', right);
+    let x = right ? at.x + 24 - pw : at.x - 24, y = at.y - ph / 2;
+    x = Math.max(2, Math.min(W - pw - 2, x)); y = Math.max(2, Math.min(H - ph - 2, y));
+    pop.style.left = Math.round(x) + 'px'; pop.style.top = Math.round(y) + 'px';
+    pop.style.transformOrigin = (right ? 'right' : 'left') + ' center';
   }
   function liveLoop() {
     cancelAnimationFrame(liveRaf); logKey = ''; popKey = '';
@@ -340,12 +351,13 @@
         $('#lvPer').textContent = inter ? 'INT' : G.LIVE.period(min, tl).toUpperCase();
         $('#lvTime').textContent = inter ? 'after ' + ['', '1st', '2nd', '3rd'][inter] : G.LIVE.clock(min, tl);
         $('#lvShots').textContent = 'Shots ' + Math.round(pre.res.a.shots * frac) + '–' + Math.round(pre.res.b.shots * frac);
-        const past = tl.ev.filter(e => e.t <= min);
+        const pens = tl.pens || [];
+        const past = tl.ev.concat(pens.map(p => Object.assign({ pen: true }, p))).filter(e => e.t <= min).sort((x, y) => x.t - y.t);
         const key = past.length + '|' + pre.idx + pre.game;
         if (key !== logKey) {
           logKey = key;
-          $('#lvLog').innerHTML = past.slice().reverse().map(e => '<div class="lg ' + e.s + '"><span>' + G.LIVE.stamp(e) + '</span><b>' + (e.s === 'a' ? esc(st.team.abbr) : esc(pre.oppAbbr)) + '</b><i>' +
-            (e.s === 'a' ? esc(G.LIVE.goalLine(e)) : 'Goal') + '</i></div>').join('');
+          $('#lvLog').innerHTML = past.slice().reverse().map(e => '<div class="lg ' + (e.pen ? 'pen' : e.s) + '"><span>' + G.LIVE.stamp(e) + '</span><b>' + (e.s === 'a' ? esc(st.team.abbr) : esc(pre.oppAbbr)) + '</b><i>' +
+            (e.pen ? (e.who ? esc(e.who) + ' · ' : '') + '2 min penalty' : e.s === 'a' ? esc(G.LIVE.goalLine(e)) : 'Goal' + (e.tag === 'pp' ? ' · PPG' : e.tag === 'sh' ? ' · SHG' : '')) + '</i></div>').join('');
         }
         const pt = $('#lvPerT');
         if (pt) {
@@ -353,9 +365,21 @@
           const row = (name, i) => '<tr><td>' + esc(name) + '</td>' + r.map((x, p) => '<td>' + (min > p * 20 || x[i] ? x[i] : '·') + '</td>').join('') + '<td><b>' + (i ? sc.b : sc.a) + '</b></td></tr>';
           pt.innerHTML = row(st.team.abbr, 0) + row(pre.oppAbbr, 1);
         }
-        const hl = !fin && !inter ? (tl.hl || []).find(x => min >= x.t && min - x.t < 3) : null, pk = hl ? hl.k + hl.t : '';
-        if (pk !== popKey) { popKey = pk; const el = $('#lvPop'); if (el) el.innerHTML = hl ? popHTML(hl) : ''; }
-        G.LIVE.draw(cv, { anim: now, min, tl, final: fin, inter, c1: st.team.c1, c2: st.team.c2, oppAbbr: pre.oppAbbr });
+        // power play: who is short and how long is left
+        const pen = !fin && !inter ? pens.find(p => min >= p.t && min < p.end) : null, ppEl = $('#lvPP');
+        if (ppEl) { ppEl.textContent = pen ? (pen.s === 'b' ? 'POWER PLAY ' : 'PENALTY KILL ') + G.LIVE.mmss(pen.end - min) : ''; ppEl.className = 'lv-pp' + (pen ? (pen.s === 'b' ? ' pp' : ' pk') : ''); }
+        const an = G.LIVE.draw(cv, { anim: now, min, tl, final: fin, inter, pen, c1: st.team.c1, c2: st.team.c2, oppAbbr: pre.oppAbbr });
+        // pop-ups: your goals (how it went in), big hits, big saves
+        let hl = null;
+        if (!fin && !inter) {
+          const g = tl.ev.find(e => e.s === 'a' && !e.so && e.scId && min >= e.t && min - e.t < 3);
+          hl = g ? { k: 'goal', t: g.t, id: g.scId, word: g.kind, tag: g.tag } : (tl.hl || []).find(x => min >= x.t && min - x.t < 3) || null;
+        }
+        const pk = hl ? hl.k + hl.t : '';
+        if (pk !== popKey) {
+          popKey = pk; const el = $('#lvPop');
+          if (el) { el.innerHTML = hl ? popHTML(hl) : ''; if (hl && an) placePop(el, an, hl.k === 'goal' ? an.net : hl.k === 'save' ? an.g : an.hit || an.pk); }
+        }
       } else G.LIVE.draw(cv, { anim: now, min: 0, final: false, inter: 1, c1: st.team.c1, c2: st.team.c2 });
       liveRaf = requestAnimationFrame(frame);
     };
@@ -385,12 +409,12 @@
         '<span class="tr-b"><button class="buy" data-trade="' + i + '"' + (have >= t.n ? '' : ' disabled') + '>Trade</button>' + (!t.legend && have >= t.n * 2 ? '<button class="buy" data-batch="' + i + '">All ×' + Math.floor(have / t.n) + '</button>' : '') + '</span></div>';
     }).join('') + '</section><div class="note">Fair rates: 1 uncommon = a 6th, 1 rare = a 4th, 1 epic = a 2nd, and two picks of a round combine into one a round higher. Three Legendaries buy one Legendary of the country and position you pick. Only bench players can be traded; lock a player on his card to keep him off the desk. Gear and traits go back to your locker.</div>';
 
-    h += sh(A.gearIcon('stick', 'currentColor', 18) + ' Bulk gear trade-in', '<span class="sec-note">' + st.gear.length + ' spare pieces</span>');
+    h += sh(A.gearIcon('stick', 'currentColor', 18) + ' Spare gear: salvage and fuse', '<span class="sec-note">' + st.gear.length + ' spare pieces</span>');
     const as = st.autoScrap == null ? -1 : st.autoScrap;
     h += '<section class="panel autoscrap"><div class="as-h"><b>Auto-scrap new drops</b><i>' + (st.scrapped ? st.scrapped + ' scrapped so far' : 'Turned into tape the moment they drop') + '</i></div>' +
       '<div class="chips">' + [[-1, 'Off'], [0, 'Common'], [1, 'Uncommon & below'], [2, 'Rare & below']].map(([v, n]) =>
         '<button class="chip' + (as === v ? ' on' : '') + '" data-ascrap="' + v + '">' + n + '</button>').join('') + '</div>' +
-      '<label class="chk"><input type="checkbox" id="autoUp"' + (st.autoUp ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Auto trade-up: every 5 spares of a rarity become 1 of the next</label></section>';
+      '<label class="chk"><input type="checkbox" id="autoUp"' + (st.autoUp ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Auto-fuse: every 5 spares of a rarity fuse into 1 of the next</label></section>';
     h += '<section class="panel flush bulk">' + D.RARITY.map((r, i) => {
       const list = st.gear.filter(g => g.rarity === r.k);
       if (!list.length) return '';
@@ -399,17 +423,17 @@
         '<button class="buy" data-salvall="' + r.k + '">Salvage all</button>' +
         (i < 4 ? '<button class="buy" data-tradeup="' + r.k + '"' + (list.length >= 5 ? '' : ' disabled') + '>5 → 1 ' + D.RARITY[i + 1].n.toLowerCase() + '</button>' : '') + '</div>';
     }).join('') + (st.gear.length ? '' : '<div class="empty">' + ic('gear', 22) + '<span>No spare gear in the locker.</span></div>') + '</section>' +
-      '<div class="note">Salvage turns spares into tape. Trade-up swaps your five weakest spares of a rarity for one random piece of the next rarity.</div>';
+      '<div class="note">Salvage turns spares into tape. <b>Fuse 5</b> is free: your five weakest spares of a rarity, any slots, become one piece of the next rarity in the slot your team needs most. <b>Matched fusing</b> below costs tape but keeps the slot you choose.</div>';
 
     const fg = ST.fuseGroups();
-    h += sh(ic('fuse', 18) + ' Gear fusing', '<span class="sec-note">' + ic('tape', 12) + ' ' + fmt(st.tape) + ' tape</span>');
+    h += sh(ic('fuse', 18) + ' Matched fusing', '<span class="sec-note">' + ic('tape', 12) + ' ' + fmt(st.tape) + ' tape</span>');
     h += '<section class="panel">' + (fg.length ? fg.map(f => {
       const r = D.RARITY[D.RIDX[f.rarity]], nx = D.RARITY[D.RIDX[f.rarity] + 1], slot = D.GEAR_SLOTS[f.kind].find(s => s.k === f.slot);
       return '<div class="fuse-row"><span class="fuse-in">' + [0, 1, 2].map(() => A.gearIcon(f.slot, r.color, 22)).join('') + '</span>' + ic('chev', 16, 'dimc') +
         '<span class="fuse-out" style="--rc:' + nx.color + '">' + A.gearIcon(f.slot, nx.color, 30) + '</span>' +
         '<span class="fuse-t"><b>' + nx.n + ' ' + slot.n + '</b><i>same slot, fresh roll · you hold ' + f.count + '</i></span>' +
         '<button class="buy" data-fuse="' + f.key + '"' + (st.tape < f.cost ? ' disabled' : '') + '>' + f.cost + ' tape</button></div>';
-    }).join('') : '<div class="empty">' + ic('fuse', 26) + '<span>Nothing to fuse yet. Fusing works on spare gear in your locker (not players): three spare pieces of the same rarity and slot make one of the next rarity. To turn bench players into something, use the Trade desk above.</span></div>') + '</section>';
+    }).join('') : '<div class="empty">' + ic('fuse', 26) + '<span>Nothing to match yet. Three spare pieces of the same rarity and slot fuse into one of the next rarity in that same slot, for tape. (Fuse 5 above works on any mix of slots.) To turn bench players into something, use the Trade desk above.</span></div>') + '</section>';
 
     h += sh(ic('shard', 18) + ' Shard exchange', '<span class="sec-note">40 tape → 5 shards</span>');
     h += '<div class="xgrid">' + ['F', 'D', 'G'].map(k => '<button class="xtile" data-tape="' + k + '"' + (st.tape < 40 ? ' disabled' : '') + ' style="--pc:' + POOLC[k] + '">' + ic('shard', 26) + '<b>+5 ' + POOLN[k] + '</b><i>40 tape</i></button>').join('') + '</div>';
@@ -443,7 +467,7 @@
         '<span class="odds-l">' + odds.map((o, i) => o ? '<em style="color:' + D.RARITY[i].color + '">' + D.RARITY[i].n + ' ' + o + '%</em>' : '').join('') + '</span></span>' +
         '<span class="dp-a"><span class="dp-n">×' + n + '</span><button class="buy' + (n ? ' primary' : '') + '" data-draft="' + r + '"' + (n ? '' : ' disabled') + '>Draft</button>' +
         (r > 1 && n >= 2 ? '<button class="buy" data-combine="' + r + '">2 → ' + ST.ord(r - 1) + '</button>' : '') + '</span></div>';
-    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 6 better than your average, a 7th-rounder about 6 worse. Scouts lean toward your weakest starter’s position. Odds improve each division you climb, and Legendary prospects appear from Division 4.</div>';
+    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 4 to 8 better than your average, a 7th-rounder about 4 to 8 worse, and nobody arrives far above your division’s top. Scouts lean toward your weakest starter’s position. Rarity odds improve each division you climb; a 1st-round pick always has a Legendary chance (1% in Division 8, up to 20% in Division 1).</div>';
 
     h += sh(ic('bolt', 18) + ' Boosts', '<span class="sec-note">Earned from rewards or bought here</span>');
     h += '<section class="panel flush boosts">' + D.BOOSTS.map(b => {
@@ -613,7 +637,7 @@
         '<div class="note">Caps rise to ' + next.cap + ' for strengths. Stats stay where they are.' + (isG ? ' Goalies cost 1.5× shards.' : '') + '</div></div>';
     } else if (next && ri >= 3) {
       const b = (p.capB || 0) / 2, have = st.shards[pool];
-      h += '<div class="promo brk"><div class="brk-h"><b>Breakthroughs ' + b + ' / ' + ST.BREAK_MAX + '</b><i>Every cap +2 per breakthrough, up to 99</i></div>' +
+      h += '<div class="promo brk"><div class="brk-h"><b>Breakthroughs ' + b + ' / ' + ST.BREAK_MAX + '</b><i>Each breakthrough raises every cap by about 2 (strengths up to 99, weaker skills less, by type)</i></div>' +
         '<div class="fac-bar">' + Array.from({ length: ST.BREAK_MAX }, (_, i) => '<i class="' + (i < b ? 'on' : '') + '"></i>').join('') + '</div>';
       if (ST.canBreak(p)) {
         const need = ST.breakCost(p), can = have >= need;
@@ -621,7 +645,7 @@
           '<button class="btn sm' + (can ? ' primary' : '') + '" data-break="' + p.id + '"' + (can ? '' : ' disabled') + '>Break through</button></div>';
       }
       h += '<div class="note">Epic is as far as promotion goes. Breakthroughs let a player you love keep climbing. <b style="color:' + D.RARITY[4].color + '">Legendary</b> players come from the draft, free agency, title packs and the three-for-one trade.</div>' +
-        '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: every cap 99, two trait slots.</i></div>' +
+        '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: Legendary caps (strengths up to 99, weaker skills lower by type) and two trait slots.</i></div>' +
         '<button class="btn sm gold" data-legbuy="' + p.id + '">$0.99</button></div></div>';
     }
     else if (next) h += '<div class="note">Division ' + st.div + ' allows promotions up to ' + D.RARITY[ST.promoCap()].n + '. Move up a division to go further.</div>';
@@ -640,7 +664,7 @@
     [1, 2].slice(0, slots).forEach(n => {
       const key = n === 2 ? p.xf2 : p.xf, xf = key && D.XFACTORS.find(x => x.k === key);
       h += '<button class="xfslot" data-xf="' + p.id + '" data-xslot="' + n + '" style="--rc:' + (xf ? A.rarityColor(xf.r) : 'var(--line2)') + '"><span class="xf-ic">' + ic('bolt', 22) + '</span>' +
-        '<span><b>' + (xf ? xf.n : 'Empty slot') + '</b><i>' + (xf ? esc(xf.d) : 'Traits drop from reward picks and championship packs.') + '</i></span>' + ic('chev', 16, 'dimc') + '</button>';
+        '<span><b>' + (xf ? xf.n : 'Empty slot') + '</b><i>' + (xf ? esc(xf.d) : 'Traits are Hall of Fame rewards from franchise achievements.') + '</i></span>' + ic('chev', 16, 'dimc') + '</button>';
     });
     if (p.history.length) {
       h += '<div class="sec-h in"><h2>Season by season</h2></div><div class="scroll-x"><table class="hist"><thead><tr><th>Sn</th><th>Div</th><th>OVR</th>' +
@@ -713,7 +737,7 @@
     const kind = p.pos === 'G' ? 'goalie' : 'skater';
     const list = st.xfs.map(k => D.XFACTORS.find(x => x.k === k)).filter((x, i, arr) => x && x.pos === kind && x.k !== (slot === 2 ? p.xf : p.xf2) && arr.indexOf(x) === i);
     let h = sheetHead('Trait slot ' + slot, 'for ' + esc(p.name), 'data-act="back" data-pid="' + pid + '"');
-    if (!list.length) h += '<div class="empty">' + ic('bolt', 26) + '<span>No traits in the locker for this position. They drop from reward picks and titles.</span></div>';
+    if (!list.length) h += '<div class="empty">' + ic('bolt', 26) + '<span>No traits in the locker for this position. Traits only come from franchise achievements on the Trophies tab, and they stay with you through every new franchise.</span></div>';
     h += list.map(x => '<button class="xfslot" data-setxf="' + x.k + '" data-pid="' + pid + '" data-xslot="' + slot + '" style="--rc:' + A.rarityColor(x.r) + '"><span class="xf-ic">' + ic('bolt', 22) + '</span><span><b>' + x.n + '</b><i>' + x.d + '</i></span></button>').join('');
     openModal(h);
   }
@@ -935,7 +959,7 @@
       return '<button class="tsel-r' + (on ? ' on' : '') + '" data-psel="' + p.id + '">' + A.portrait(p, st.team, 40, rcol(p)) +
         '<span class="tsel-t"><b>' + esc(p.name) + (p.legacyB ? ' <em class="leg">Legacy +' + p.legacyB + '</em>' : '') + '</b><i>' + p.pos + ' · ' + M.typeOf(p).ab + ' · ' + M.overall(p) + ' ovr · ' + (p.awards || []).length + ' awards</i></span><span class="tsel-c">' + (on ? ic('check', 16) : '') + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="note">What resets: division, season count, pucks, shards, tape, regular gear, picks, traits, facilities, coach skills, achievements and daily rewards. What stays: Legacy players (as Legendary, starting about 5 Overall above the new roster, with their trophies and +2 every attribute), Hall of Fame gear, chemistry, your coach, history, trophy case, franchise achievements, jersey and logo. You can carry one more Legacy player with every new franchise, with no limit.</div>';
+    h += '<div class="note">What resets: division, season count, pucks, shards, tape, regular gear, picks, facilities, coach skills, achievements and daily rewards. What stays: Legacy players (as Legendary, starting about 5 Overall above the new roster, with their trophies and +2 every attribute), Hall of Fame gear, traits (off the players, back in the locker), chemistry, your coach, history, trophy case, franchise achievements, jersey and logo. You can carry one more Legacy player with every new franchise, with no limit.</div>';
     h += '<button class="btn gold big" data-act="doprestige">' + ic('trophy', 16) + ' Start Franchise ' + ((st.prestige || 0) + 2) + ' with ' + prestSel.length + ' Legacy player' + (prestSel.length === 1 ? '' : 's') + '</button>';
     openModal(h);
   }
@@ -944,7 +968,7 @@
   function fachSheet() {
     const st = ST.get(), o = st.fachOffer; if (!o) return;
     const a = ST.FACH.find(x => x.k === o.k), x = D.XFACTORS.find(y => y.k === o.x), slot = D.GEAR_SLOTS[o.g.kind].find(s => s.k === o.g.slot);
-    let h = '<div class="pick-h"><div class="eyebrow">' + esc(a.n) + ' · tier ' + o.tier + '</div><h2 class="big-title">Pick your reward</h2><p class="sub">One or the other. Hall of Fame gear survives every franchise reset.</p></div><div class="picks two">';
+    let h = '<div class="pick-h"><div class="eyebrow">' + esc(a.n) + ' · tier ' + o.tier + '</div><h2 class="big-title">Pick your reward</h2><p class="sub">One or the other. Hall of Fame gear and traits both survive every new franchise.</p></div><div class="picks two">';
     h += '<button class="pick" data-fachpick="gear" style="--rc:' + D.GOLD + '"><span class="pick-art">' + A.gearIcon(o.g.slot, D.GOLD, 44) + '</span><span class="pick-k">Hall of Fame gear</span><b>' + slot.n + (o.g.kind === 'goalie' ? ' (G)' : '') + '</b><i>+' + o.g.p + ' ' + D.ATTR_LABEL[slot.p] + (o.g.s ? ', +' + o.g.s + ' ' + D.ATTR_LABEL[slot.s] : '') + '</i></button>';
     h += '<button class="pick" data-fachpick="trait" style="--rc:' + A.rarityColor(x.r) + '"><span class="pick-art">' + ic('bolt', 44) + '</span><span class="pick-k">Trait</span><b>' + esc(x.n) + '</b><i>' + esc(x.d) + '</i></button></div>';
     openModal('<div class="result">' + h + '</div>', true);
@@ -1110,7 +1134,7 @@
   function pushFeed(f) { feed.unshift(f); if (feed.length > 60) feed.pop(); }
 
   G.UI = {
-    render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet, savesSheet, popHTML,
+    render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet, savesSheet, popHTML, placePop,
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
     tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },
