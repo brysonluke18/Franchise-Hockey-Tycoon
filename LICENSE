@@ -1,0 +1,30 @@
+Copyright (c) 2026 brysonluke18. All rights reserved.
+
+This repository and everything in it (source code, game design, artwork,
+text and other assets, together "the Software") is proprietary. It is not
+open source, and no license is granted except as stated below.
+
+You MAY:
+  - view the Software on GitHub, and
+  - play the game at its official hosted address for personal,
+    non-commercial use.
+
+You MAY NOT, without prior written permission from the copyright holder:
+  - copy, download for redistribution, or mirror the Software, in whole
+    or in part;
+  - modify, adapt, translate, or create derivative works of it;
+  - publish, distribute, sublicense, sell, or host it anywhere else;
+  - use any part of it, including its code, design, names, or artwork,
+    in another product or project, commercial or not;
+  - use it to train or evaluate machine-learning models.
+
+Forking the repository on GitHub is permitted only to the extent GitHub's
+Terms of Service require; it grants no rights beyond those listed above.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+For permission requests, open an issue on this repository.
