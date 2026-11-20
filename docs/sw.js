@@ -1,6 +1,6 @@
 /* Breakaway service worker: the game works offline once installed.
    Game files: network first (so updates arrive), cache as fallback. Fonts: cache first. */
-const CACHE = 'breakaway-v16';
+const CACHE = 'breakaway-v17';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   './css/app.css', './js/data.js', './js/art.js', './js/model.js', './js/sim.js', './js/live.js', './js/state.js', './js/practice.js', './js/ui.js', './js/main.js'];
 

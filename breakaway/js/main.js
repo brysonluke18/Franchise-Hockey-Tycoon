@@ -229,6 +229,7 @@
         case 'hint': st.hintClosed = true; ST.save(); UI.render(); return;
         case 'kit': UI.kitDraft = null; UI.kitSheet(); return;
         case 'saves': UI.savesSheet(); return;
+        case 'chemnotes': st.showChem = !st.showChem; ST.save(); UI.render(); return;
         case 'kitclose': UI.kitDraft = null; UI.closeModal(); return;
         case 'savekit': {
           const k = UI.kitDraft, t = st.team;

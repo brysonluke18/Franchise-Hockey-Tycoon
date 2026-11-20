@@ -58,7 +58,7 @@
       '<span class="wchip">' + ic('token', 15) + '<b>' + ST.pickCount() + '</b><i>picks</i></span>' +
       '<span class="wchip">' + A.gearIcon('stick', 'var(--dim)', 15) + '<b>' + st.gear.length + '</b><i>spare gear</i></span></div>';
 
-    h += sh('Lineup', '<button class="btn sm' + (editMode ? ' primary' : '') + '" data-act="editlines">' + ic(editMode ? 'check' : 'swap', 15) + (editMode ? ' Done' : ' Edit lines') + '</button>');
+    h += sh('Lineup', '<span class="sec-btns"><button class="btn sm chemtg' + (st.showChem ? ' primary' : '') + '" data-act="chemnotes">Chem details</button><button class="btn sm' + (editMode ? ' primary' : '') + '" data-act="editlines">' + ic(editMode ? 'check' : 'swap', 15) + (editMode ? ' Done' : ' Edit lines') + '</button></span>');
     h += '<div class="gearbar"><button class="btn sm' + (ST.alerts().gear ? ' alert' : '') + '" data-act="autoequip">' + ic('gear', 15) + ' Auto-equip gear</button>' +
       '<label class="chk"><input type="checkbox" id="autoAll"' + (autoAll ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Re-fit equipped gear too</label></div>';
     if (editMode) {
@@ -72,7 +72,7 @@
     const chemBlock = (info, ov) => '<div class="lg-chem"><b class="u-ovr">' + ov + '</b><span class="chem">Chem ' + stars(info.stars) + '</span><em>' + pct(info.mult - 1) + '</em></div>';
     const chemNotes = (info) => '<div class="lg-n"><span class="cn g">' + info.games + ' GP together ' + pct(info.gb) + '</span>' +
       info.parts.map(x => '<span class="cn ' + (x.v >= 0 ? 'p' : 'm') + '">' + esc(x.t) + ' ' + pct(x.v) + (x.faded ? ' (fading)' : '') + '</span>').join('') + '</div>';
-    h += '<section class="lgrid' + (editMode ? ' editing' : '') + '">';
+    h += '<section class="lgrid' + (editMode ? ' editing' : '') + (st.showChem ? ' notes' : '') + '">';
     for (let i = 0; i < 4; i++) {
       const f = L.lines[i], d = i < 3 ? L.pairs[i] : L.goalies;
       const fi = M.chemInfo(f, t.chem, f.map(id => by[id])), di = i < 3 ? M.chemInfo(d, t.chem, d.map(id => by[id])) : null;
@@ -83,7 +83,7 @@
         '<div class="lg-tiles d">' + d.map((id, j) => gtile(by[id], i < 3 ? 'D' : (j === 0 ? 'Starter' : 'Backup'))).join('') + '</div>' + (di ? chemNotes(di) : '') + '</div>' +
         '</div></div>';
     }
-    h += '</section><div class="note">Chemistry is mostly <b>games played together</b>: it keeps growing the longer a unit stays together, and by ' + M.CHEM_FADE + ' games it fully erases any bad fit. Fit is a small instant bonus: mixed roles and a shared country help a line, two of one type hurts. OFD with DFD or two TWDs help a pair; two OFDs or two DFDs hurt. Goalies have no chemistry. The backup starts about 30% of regular-season games.</div>';
+    h += '</section><div class="note chemnote' + (st.showChem ? ' on' : '') + '">Chemistry is mostly <b>games played together</b>: it keeps growing the longer a unit stays together, and by ' + M.CHEM_FADE + ' games it fully erases any bad fit. Fit is a small instant bonus: mixed roles and a shared country help a line, two of one type hurts. OFD with DFD or two TWDs help a pair; two OFDs or two DFDs hurt. Goalies have no chemistry. The backup starts about 30% of regular-season games.</div>';
     const extras = ST.bench().sort((a, b) => M.overall(b) - M.overall(a));
     h += sh('Bench', '<span class="sec-note">' + extras.length + ' player' + (extras.length === 1 ? '' : 's') + '</span>');
     h += extras.length ? '<section class="bgrid' + (editMode ? ' editing' : '') + '">' + extras.map(p => gtile(p, p.pos)).join('') + '</section>' +
