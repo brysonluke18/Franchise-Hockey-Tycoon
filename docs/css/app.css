@@ -1035,3 +1035,9 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .lv-pp:empty{display:none}
 .lv-pp.pp{background:var(--good);color:#06120a}
 .lv-pp.pk{background:var(--bad);color:#fff}
+/* callout text: always white with a heavy black outline, the name on a dark tag, so it reads on any burst colour */
+.pop-burst b,.pop-save .pop-burst b,.pop-goal .pop-burst b{color:#fff;-webkit-text-stroke:3.5px #0b0f14;paint-order:stroke fill;text-shadow:2px 2px 0 #0b0f14}
+.pop-burst i,.pop-goal .pop-burst i{color:#fff;background:#0b0f14;padding:2px 6px 1px;border-radius:4px;margin-top:3px}
+.al-fr{font:700 11px/1 var(--fb);letter-spacing:.1em;text-transform:uppercase;color:var(--dim2);margin:10px 2px 6px}
+.rec.al .btn{flex:none;white-space:nowrap}
+.rec.al .rec-l{min-width:0}

@@ -553,7 +553,7 @@
   // ------------------------------------------------------------ modals
   let armedAt = 0;
   function openModal(html, lock) {
-    $('#sheet').innerHTML = html;
+    $('#sheet').innerHTML = html; $('#sheet').dataset.pid = '';
     $('#modal').classList.remove('hidden');
     $('#modal').classList.toggle('locked', !!lock);
     $('#sheet').scrollTop = 0;
@@ -675,7 +675,10 @@
     }
     h += '<div class="grid2 foot"><button class="btn" data-rename="' + p.id + '">' + ic('edit', 16) + ' Name &amp; look</button>' +
       '<button class="btn" data-act="swapmode" data-pid="' + p.id + '">' + ic('swap', 16) + ' Move in lineup</button></div>';
-    openModal(h);
+    // re-rendering the same player (train, promote, equip) keeps your place on the card so you can tap repeatedly
+    const sh = $("#sheet"), same = modalOpen() && sh.dataset.pid === id, top = sh.scrollTop;
+    openModal(h); sh.dataset.pid = id;
+    if (same) { sh.scrollTop = top; sh.style.animation = "none"; } else sh.style.animation = "";
   }
 
   let lookDraft = null, lookPid = null;
@@ -766,6 +769,21 @@
     openModal(h, true);
   }
 
+  // franchise history: players who retired when you started a new franchise, best first, each one
+  // can be brought back as a Legacy player
+  function alumniHTML(st) {
+    const al = (st.alumni || []).slice().sort((a, b) => (b.fr || 1) - (a.fr || 1) || (b.peak || 0) - (a.peak || 0));
+    let h = '<div class="sec-h in" id="alumni"><h2>Franchise history</h2><span class="sec-note">' + al.length + ' retired</span></div>';
+    if (!al.length) return h + '<div class="empty">' + ic('team', 24) + '<span>When you start a new franchise, everyone you do not carry over retires here. You can bring any of them back later as a Legacy player.</span></div>';
+    let fr = 0;
+    al.forEach(p => {
+      if (p.fr !== fr) { fr = p.fr; h += '<div class="al-fr">Franchise ' + (fr || 1) + '</div>'; }
+      const c = p.career || {}, line = p.pos === 'G' ? (c.gp || 0) + ' GP · ' + (c.w || 0) + ' W · ' + (c.so || 0) + ' SO' : (c.gp || 0) + ' GP · ' + (c.g || 0) + ' G · ' + (c.p || 0) + ' P';
+      h += '<div class="rec al">' + A.portrait(p, st.team, 34, rcol(p)) + '<span class="rec-l">' + flag(p.nat, 13) + ' ' + esc(p.name) + '<i>' + p.pos + ' · ' + M.typeOf(p).ab + ' · peak ' + (p.peak || M.overall(p)) + ' ovr · ' + line + ((p.awards || []).length ? ' · ' + p.awards.length + ' award' + (p.awards.length > 1 ? 's' : '') : '') + '</i></span>' +
+        '<button class="btn sm gold" data-bringback="' + p.id + '">Bring back $0.99</button></div>';
+    });
+    return h + '<div class="note">A player you bring back returns the same way as a carried-over Legacy player: Legendary, +2 to every attribute, starting about 5 Overall above your current lineup average. He joins your bench.</div>';
+  }
   function historySheet() {
     const st = ST.get();
     let h = sheetHead('History &amp; records', 'Season ' + st.season + ' · ' + st.history.length + ' archived', 'data-act="close"');
@@ -778,7 +796,8 @@
     });
     const g = all.filter(x => x.pos === 'G').sort((a, b) => (b.career.so || 0) - (a.career.so || 0))[0];
     if (g && g.career.so) h += '<div class="rec">' + A.portrait(g, st.team, 32, rcol(g)) + '<span class="rec-l">Career shutouts<i>' + flag(g.nat, 14) + ' ' + esc(g.name) + '</i></span><b>' + g.career.so + '</b></div>';
-    h += '</div><div class="sec-h in"><h2>Season archive</h2></div>';
+    h += '</div>' + alumniHTML(st);
+    h += '<div class="sec-h in"><h2>Season archive</h2></div>';
     if (!st.history.length) h += '<div class="empty">' + ic('season', 26) + '<span>Nothing archived yet. Finish a season.</span></div>';
     st.history.forEach(s => {
       h += '<div class="arch"><div class="arch-h"><b>' + ((s.fr || 1) > 1 || (ST.get().prestige || 0) ? 'F' + (s.fr || 1) + ' · ' : '') + 'Season ' + s.season + '</b><span class="arch-d">' + esc(s.divName) + '</span><span class="pill ' + (s.result === 'Champion' ? 'gold' : '') + '">' + s.result + '</span></div>' +
@@ -1063,7 +1082,7 @@
       '<div class="swatches">' + ['c1', 'c2', 'c3'].map((c, i) => '<label class="sw"><input type="color" id="kc_' + c + '" data-kc="' + c + '" value="' + k[c] + '"><em>' + ['Primary', 'Secondary', 'Trim'][i] + '</em></label>').join('') + '</div>' +
       '<div class="sec-h in"><h2>Jersey pattern</h2></div><div class="kgrid" id="kitPats">' + kitPats(k) + '</div>' +
       '<div class="sec-h in"><h2>Logo</h2></div>' +
-      '<div class="chips">' + [['roundel', 'Roundel'], ['shield', 'Shield'], ['crest', 'Crest only']].map(([v, n]) => '<button type="button" class="chip' + (k.lstyle === v ? ' on' : '') + '" data-klogo="' + v + '">' + n + '</button>').join('') + '</div>' +
+      '<div class="chips">' + [['roundel', 'Round badge'], ['shield', 'Shield'], ['crest', 'Emblem only']].map(([v, n]) => '<button type="button" class="chip' + (k.lstyle === v ? ' on' : '') + '" data-klogo="' + v + '">' + n + '</button>').join('') + '</div>' +
       '<div class="kgrid lg" id="kitCrests">' + kitCrests(k) + '</div>' +
       '<button class="btn primary" data-act="savekit">Save jersey + logo</button>');
   }

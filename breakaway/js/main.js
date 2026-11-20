@@ -261,6 +261,11 @@
     if ((x = el('[data-up]'))) { if (ST.spendUpgrade(x.dataset.pid, x.dataset.up)) { UI.playerSheet(x.dataset.pid); UI.header(); } return; }
     if ((x = el('[data-look]'))) { UI.setLook(x.dataset.look, x.dataset.val); return; }
     if ((x = el('[data-buyshard]'))) { if (ST.buyShards(x.dataset.buyshard)) { UI.render(); UI.header(); } return; }
+    if ((x = el('[data-bringback]'))) {
+      if (x.dataset.sure) { const sc = $('#sheet').scrollTop; if (ST.bringBack(x.dataset.bringback)) { UI.historySheet(); $('#sheet').scrollTop = sc; UI.render(); } }
+      else { x.dataset.sure = '1'; x.textContent = 'Tap to confirm $0.99 (demo)'; }
+      return;
+    }
     if ((x = el('[data-legbuy]'))) {
       if (x.dataset.sure) { if (ST.buyLegend(x.dataset.legbuy)) { UI.playerSheet(x.dataset.legbuy); UI.render(); } }
       else { x.dataset.sure = '1'; x.textContent = 'Tap to confirm $0.99 (demo)'; }

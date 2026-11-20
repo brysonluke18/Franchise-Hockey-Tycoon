@@ -1024,17 +1024,22 @@
     toast('Two ' + ord(round) + '-rounders became a ' + ord(round - 1) + '-round pick', 'promo');
     save(); return true;
   }
+  const FA_MIN = [4, 8, 15, 30, 60];   // minutes of passive income per rarity
   function refreshAgents(force) {
     if (!force && st.fa && st.fa.length && Date.now() - (st.faAt || 0) < 4 * 3600e3) return;
     const i = D.DIVISIONS.findIndex(x => x.d === st.div);
     const w = [[55, 38, 7, 0, 0], [45, 42, 13, 0, 0], [30, 45, 22, 3, 0], [20, 45, 30, 5, 0], [12, 40, 38, 10, 0], [6, 30, 44, 18, 2], [3, 22, 45, 26, 4], [2, 15, 42, 33, 8]][i];
     const cap = maxRarity(), avoid = nameSet();
     st.fa = [];
+    const ls = lineupIds().map(byId).filter(Boolean), avgL = ls.reduce((s, q) => s + M.overall(q), 0) / Math.max(1, ls.length);
     for (let n = 0; n < 3; n++) {
       const ri = Math.min(M.weightedIndex(w), cap);
       const pos = M.pick(['LW', 'C', 'RW', 'D', 'D', 'G']);
       const p = M.makePlayer(pos, D.RARITY[ri].k, draftTarget(ri), null, { avoid });
-      st.fa.push({ p, cost: Math.round((350 * Math.pow(2.3, ri) + M.overall(p) * 25) * payout()), sold: false });
+      // priced in minutes of your own passive income (so they never go cheap as the team grows), plus a premium
+      // for anyone better than your current lineup average
+      const over = Math.max(0, M.overall(p) - avgL), base = (350 * Math.pow(2.3, ri) + M.overall(p) * 25) * payout();
+      st.fa.push({ p, cost: Math.round((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over)), sold: false });
     }
     st.faAt = Date.now();
   }
@@ -1117,6 +1122,33 @@
   function keepLimit() { return (st.prestige || 0) + 1; }
   // only in the offseason right after winning the Division 1 championship
   function canPrestige() { const h = st && st.history[0]; return !!h && st.phase === 'offseason' && h.result === 'Champion' && h.div === 1 && (h.fr || 1) === franchiseNo(); }
+  // a Legacy player: Legendary caps, +2 to every attribute per franchise, but starting just above
+  // the team he joins (about 5 Overall over its average, Legacy bonus included)
+  function makeLegacy(p, teamAvg, how) {
+    Object.keys(p.gear).forEach(k => { p.gear[k] = null; });
+    p.xf = p.xf2 = null; p.capB = 0; p.locked = false;
+    p.rarity = 'legendary';
+    p.legacyB = (p.legacyB || 0) + 2;
+    const target = Math.max(5, Math.round(teamAvg + 5 - p.legacyB));
+    for (let i = 0; i < 6; i++) {
+      const f = target / Math.max(1, M.trainedOverall(p));
+      Object.keys(p.a).forEach(k => { p.a[k] = Math.max(1, Math.min(M.attrCap(p, k), Math.round(p.a[k] * f))); });
+    }
+    p.how = how; p.acq = null;
+  }
+  // franchise history: bring a retired player back ($0.99 in the demo) as a Legacy player, onto the bench
+  function bringBack(id) {
+    const i = (st.alumni || []).findIndex(p => p.id === id); if (i < 0) return false;
+    const p = st.alumni.splice(i, 1)[0], ls = lineupIds().map(byId).filter(Boolean);
+    const avg = ls.reduce((s, q) => s + M.trainedOverall(q), 0) / Math.max(1, ls.length);
+    makeLegacy(p, avg, 'Legacy player · brought back from Franchise ' + (p.fr || 1));
+    if (st.team.roster.some(q => q.num === p.num)) p.num = freeNumber();
+    p.season = M.blankLine(p.pos === 'G'); p.startOvr = M.overall(p);
+    delete p.fr; delete p.peak;
+    st.team.roster.push(p); st.backBuys = (st.backBuys || 0) + 1;
+    toast(p.name + ' is back as a Legacy player (' + M.overall(p) + ' ovr). He is on your bench.', 'gold');
+    save(); emit('roster'); return true;
+  }
   function prestige(keepIds) {
     if (!canPrestige()) return false;
     const keep = (keepIds || []).slice(0, keepLimit()).map(byId).filter(Boolean);
@@ -1131,18 +1163,13 @@
     // about 5 Overall over the fresh team's average, Legacy bonus included
     const fresh = M.makeRoster(10, 'common');
     const freshAvg = fresh.reduce((s, p) => s + M.trainedOverall(p), 0) / fresh.length;
-    keep.forEach(p => {
-      Object.keys(p.gear).forEach(k => { p.gear[k] = null; });
-      p.xf = p.xf2 = null; p.capB = 0; p.locked = false;
-      p.rarity = 'legendary';
-      p.legacyB = (p.legacyB || 0) + 2;
-      const target = Math.max(5, Math.round(freshAvg + 5 - p.legacyB));
-      for (let i = 0; i < 6; i++) {
-        const f = target / Math.max(1, M.trainedOverall(p));
-        Object.keys(p.a).forEach(k => { p.a[k] = Math.max(1, Math.min(M.attrCap(p, k), Math.round(p.a[k] * f))); });
-      }
-      p.how = 'Legacy player · carried into Franchise ' + (st.prestige + 1);
-      p.acq = null;
+    keep.forEach(p => makeLegacy(p, freshAvg, 'Legacy player · carried into Franchise ' + (st.prestige + 1)));
+    // everyone else retires into the franchise history, where they can be brought back later
+    st.alumni = st.alumni || [];
+    st.team.roster.filter(p => keep.indexOf(p) < 0).forEach(p => {
+      Object.keys(p.gear).forEach(k => { p.gear[k] = null; }); p.xf = p.xf2 = null; p.locked = false;
+      p.fr = st.prestige; p.peak = Math.max(p.peak || 0, M.overall(p));
+      st.alumni.push(p);
     });
     keep.forEach(k => { const i = fresh.findIndex(p => p.pos === k.pos && !p.kept); if (i >= 0) fresh.splice(i, 1); });
     const used = {}; keep.forEach(k => { used[k.num] = 1; });
@@ -1391,6 +1418,7 @@
       (st.shop || []).forEach(it => lv(it.g)); st.gearV2 = true;
       if (!st.coach.name) Object.assign(st.coach, makeCoach(), { bench: st.coach.bench, skills: st.coach.skills, video: st.coach.video });
       st.coach.style = st.coach.style || 'bal';
+      if (st.team.pattern === 'sash' || st.team.pattern === 'barber') st.team.pattern = 'double';   // retired patterns
       st.boosts = st.boosts || {}; st.active = st.active || []; st.achClaim = st.achClaim || [];
       if (st.pending && st.pending.kind === 'pick' && st.pending.options.some(o => !o.g && o.n == null && !o.xf && !o.k)) st.pending = buildPick(st.pending.title, st.pending.tier || 1);
       if (st.phase === 'missed') endSeason(false);
@@ -1464,7 +1492,7 @@
     AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks,
     refreshAgents, signAgent, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
     facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, keepLimit, FACH, fachValue, fachNeed, offerFach, takeFach, setAutoScrap, setAutoUp,
-    SLOTS, curSlot, slotInfo, useSlot, deleteSlot,
+    SLOTS, curSlot, slotInfo, useSlot, deleteSlot, bringBack,
     byId, save, load, wipe, catchUp, toast, fmt, findGear, freeNumber, checkGold, rollGearDrop, ord
   };
 })(window.BK = window.BK || {});

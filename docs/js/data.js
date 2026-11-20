@@ -258,7 +258,7 @@
   ];
 
   const CRESTS = ['shield', 'circle', 'diamond', 'star', 'wing', 'anchor', 'bolt', 'leaf', 'bear', 'wolf', 'hawk', 'flame'];
-  const PATTERNS = ['plain', 'yoke', 'double', 'shoulder', 'barber', 'sash'];
+  const PATTERNS = ['plain', 'yoke', 'double', 'shoulder'];
 
   // ---------------------------------------------------------------- achievements (claimed by hand on the Trophies tab)
   // theme: the gear slot and shard pool an achievement pays out in, so the reward matches the feat

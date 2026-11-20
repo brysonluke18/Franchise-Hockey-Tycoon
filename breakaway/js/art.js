@@ -101,9 +101,11 @@
       '<path d="M50 48c6 10 14 16 12 30-2 10-8 14-12 14-6 0-12-6-12-14 0-10 8-14 12-30z"/>', '']
   };
   // c: main colour, bg: the colour behind the crest (used for cut-outs; a darker tint when unknown)
+  // measured once: moves and scales each emblem so its real outline is centred in the 100x100 box (92 units across)
+  const CREST_FIT = { shield: [-0.55, -1.05, 1.011], circle: [1.96, -2.13, 1.022], diamond: [1.06, 1.06, 0.979], star: [1.06, 2.53, 0.979], wing: [-0.09, 6.04, 1.022], anchor: [0, 1, 1], bolt: [1.13, 2.08, 0.958], leaf: [0.54, 1.03, 0.989], bear: [-4.76, -6.95, 1.095], wolf: [1.06, 0.09, 0.979], hawk: [-2.13, -4.11, 1.021], flame: [1.95, 2.04, 0.979] };
   function crestInner(kind, c, bg) {
     const cr = CREST[kind] || CREST.shield, b = bg || 'rgba(0,0,0,.38)';
-    return '<g fill="' + c + '">' + cr[0] + '</g><g fill="' + b + '" color="' + b + '">' + cr[1] + '</g><g fill="' + c + '" color="' + c + '">' + cr[2] + '</g>';
+    return '<g transform="translate(' + (CREST_FIT[kind] || CREST_FIT.shield).slice(0, 2).join(' ') + ') scale(' + (CREST_FIT[kind] || CREST_FIT.shield)[2] + ')">' + '<g fill="' + c + '">' + cr[0] + '</g><g fill="' + b + '" color="' + b + '">' + cr[1] + '</g><g fill="' + c + '" color="' + c + '">' + cr[2] + '</g>' + '</g>';
   }
   function crestSVG(kind, c, size, bg) {
     const s = size || 30;
@@ -119,15 +121,14 @@
     if (st === 'shield') {
       h += '<path d="M50 3 93 16v34c0 27-20 41-43 47C27 91 7 77 7 50V16z" fill="' + k.c3 + '"/>' +
         '<path d="M50 9 87 20v30c0 23-17 35-37 41C30 85 13 73 13 50V20z" fill="' + k.c1 + '"/>' +
-        '<path d="M13 63h74v11H13z" fill="' + k.c2 + '"/>' +
-        crest(k.c2, k.c1, 0.42, 29, 17) + txt(72.5, 11, k.c1);
+        (ab ? '<path d="M13 63h74v11H13z" fill="' + k.c2 + '"/>' + crest(k.c2, k.c1, 0.42, 29, 17) + txt(72.5, 11, k.c1) : crest(k.c2, k.c1, 0.5, 25, 22));
     } else if (st === 'crest') {
       // the emblem on its own, with a keyline so it reads on any background
       h += '<g transform="translate(50 50) scale(1.07) translate(-50 -50)">' + crestInner(k.crest, k.c3, k.c3) + '</g>' + crest(k.c1, k.c2, 0.92, 4, 4);
     } else {
       h += '<circle cx="50" cy="50" r="48" fill="' + k.c3 + '"/><circle cx="50" cy="50" r="43" fill="' + k.c1 + '"/>' +
         '<circle cx="50" cy="50" r="35" fill="none" stroke="' + k.c2 + '" stroke-width="2"/>' +
-        crest(k.c2, k.c1, 0.46, 27, 15) + txt(81, 12, k.c2);
+        (ab ? crest(k.c2, k.c1, 0.46, 27, 15) + txt(81, 12, k.c2) : crest(k.c2, k.c1, 0.56, 22, 22));
     }
     return h + '</svg>';
   }
@@ -162,7 +163,7 @@
       '<path d="' + J_BODY + '" fill="none" stroke="' + k.c3 + '" stroke-width="3" stroke-linejoin="round"/>' +
       (num != null
         ? '<text x="75" y="110" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="50" fill="' + k.c2 + '" stroke="' + k.c3 + '" stroke-width="2.5" paint-order="stroke">' + num + '</text>'
-        : '<g transform="translate(51 60) scale(.48)">' + crestInner(k.crest, k.c2, k.c1) + '</g>') +
+        : '<g transform="translate(75 84) scale(.54) translate(-50 -50)">' + crestInner(k.crest, k.c3, k.c3) + '</g><g transform="translate(51 60) scale(.48)">' + crestInner(k.crest, k.c2, k.c1) + '</g>') +
       '</svg>';
   }
 
