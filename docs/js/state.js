@@ -1076,6 +1076,30 @@
     save(); return true;
   }
   const FA_MIN = [4, 8, 15, 30, 60];   // minutes of passive income per rarity
+  // what the team seems to want: the weakest starter's position, a player who fixes a unit's bad fit
+  // (two of one type, two OFDs or DFDs), and the country most of the lineup comes from
+  function faTargets() {
+    const L = st.team.lineup, out = [], FT = ['sniper', 'playmaker', 'power', 'twoway', 'enforcer'];
+    out.push({ pos: needPos(), why: 'Upgrade at your weakest spot' });
+    L.lines.forEach((ids, i) => {
+      const ps = ids.map(byId).filter(Boolean), types = ps.map(p => p.type);
+      if (types.length === 3 && new Set(types).size < 3) {
+        const dupe = types.find((t, j) => types.indexOf(t) !== j), slot = types.lastIndexOf(dupe), free = FT.filter(t => types.indexOf(t) < 0);
+        const nats = ps.map(p => p.nat), nat = nats.find((x, j) => nats.indexOf(x) !== j) || null;
+        out.push({ pos: ['LW', 'C', 'RW'][slot], type: M.pick(free), nat, why: 'Mixes up Line ' + (i + 1) + (nat ? ' and keeps it ' + M.nationOf({ nat }).n : '') });
+      }
+    });
+    L.pairs.forEach((ids, i) => {
+      const ps = ids.map(byId).filter(Boolean), s = ps.map(p => p.type).sort().join('+');
+      const want = s === 'ofd+ofd' ? 'dfd' : s === 'dfd+dfd' ? 'ofd' : s === 'dfd+twd' ? 'ofd' : s === 'ofd+twd' ? 'dfd' : null;
+      if (want) out.push({ pos: 'D', type: want, nat: ps[0] && ps[1] && ps[0].nat === ps[1].nat ? ps[0].nat : null, why: 'Balances Pair ' + (i + 1) });
+    });
+    const cnt = {}, ls = lineupIds().map(byId).filter(Boolean);
+    ls.forEach(p => { cnt[p.nat] = (cnt[p.nat] || 0) + 1; });
+    const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+    if (top && cnt[top] >= ls.length * 0.35) out.push({ pos: M.rand() < 0.5 ? needPos() : M.pick(['LW', 'C', 'RW', 'D']), nat: top, why: 'Fits your ' + M.nationOf({ nat: top }).n + ' core' });
+    return out;
+  }
   function refreshAgents(force) {
     if (!force && st.fa && st.fa.length && Date.now() - (st.faAt || 0) < 4 * 3600e3) return;
     const i = D.DIVISIONS.findIndex(x => x.d === st.div);
@@ -1085,12 +1109,14 @@
     const ls = lineupIds().map(byId).filter(Boolean), avgL = ls.reduce((s, q) => s + M.overall(q), 0) / Math.max(1, ls.length);
     for (let n = 0; n < 3; n++) {
       const ri = Math.min(M.weightedIndex(w), cap);
-      const pos = M.pick(['LW', 'C', 'RW', 'D', 'D', 'G']);
-      const p = M.makePlayer(pos, D.RARITY[ri].k, draftTarget(ri), null, { avoid });
+      // two in three are scouted for your team: a weak spot, a chemistry fix or your country core
+      const tg = M.rand() < 0.65 ? M.pick(faTargets()) : null;
+      const pos = tg ? tg.pos : M.pick(['LW', 'C', 'RW', 'D', 'D', 'G']);
+      const p = M.makePlayer(pos, D.RARITY[ri].k, draftTarget(ri), tg ? tg.nat : null, { avoid, type: tg ? tg.type : undefined });
       // priced in minutes of your own passive income (so they never go cheap as the team grows), plus a premium
       // for anyone better than your current lineup average
       const over = Math.max(0, M.overall(p) - avgL), base = (350 * Math.pow(2.3, ri) + M.overall(p) * 25) * payout();
-      st.fa.push({ p, cost: Math.round((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over)), sold: false });
+      st.fa.push({ p, cost: Math.round((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over)), sold: false, why: tg ? tg.why : null });
     }
     st.faAt = Date.now();
   }
@@ -1330,7 +1356,9 @@
       if (D.GEAR_SLOTS[kind].some(s => { const b = bestBy[kind + '|' + s.k]; return b != null && (!p.gear[s.k] || b > M.gearValue(p.gear[s.k])); })) out.gearP[p.id] = 1;
       if (Object.keys(p.a).some(k => p.a[k] < M.attrCap(p, k) && M.upgradeCost(p.a[k]) <= st.pucks)) out.train[p.id] = 1;
     });
-    out.store = pickCount();
+    // the Store dot shows only for picks you have not seen yet, so a stockpile kept for trade-ups stays quiet
+    const pc = pickCount(); if ((st.picksSeen || 0) > pc) st.picksSeen = pc;
+    out.store = pc > (st.picksSeen || 0) ? pc - (st.picksSeen || 0) : 0;
     if (st.phase === 'playoffs' || st.phase === 'offseason') out.season = 1;
     out.trophies = (st.achClaim || []).length + (dailyState().ready ? 1 : 0) +
       FACH.filter(a => { const got = (st.fach && st.fach[a.k]) || 0, need = fachNeed(a, got); return need != null && fachValue(a.k) >= need; }).length;

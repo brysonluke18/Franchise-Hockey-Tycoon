@@ -1077,3 +1077,10 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .scroll-x{scrollbar-width:none}
 .scroll-x::-webkit-scrollbar{display:none}
 @media (max-width:560px){.scroll-x table th,.scroll-x table td{padding-left:5px;padding-right:5px}}
+/* player card: season + career stats in one compact table */
+.pstats{width:100%;margin-top:12px;border-collapse:separate;border-spacing:0;background:var(--bg3);border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums}
+.pstats th{font:600 9.5px/1 var(--fb);letter-spacing:.07em;color:var(--dim2);text-transform:uppercase;padding:8px 4px 4px;text-align:center}
+.pstats td{font:700 15px/1 var(--fd);text-align:center;padding:5px 4px 7px}
+.pstats td:first-child,.pstats th:first-child{text-align:left;padding-left:10px;font:600 10.5px/1 var(--fb);letter-spacing:.05em;color:var(--dim);text-transform:uppercase;white-space:nowrap}
+.pstats tbody tr+tr td{border-top:1px solid var(--line)}
+.fa-why{display:flex;align-items:center;gap:4px;font-style:normal;font-size:11px;color:var(--good);margin-top:2px}

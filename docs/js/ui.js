@@ -459,6 +459,7 @@
   // ------------------------------------------------------------ STORE
   function renderStore() {
     const st = ST.get();
+    st.picksSeen = ST.pickCount();   // seen: clears the Store dot until a new pick arrives
     refreshShop();
     ST.refreshAgents();
     const left = Math.max(0, 4 * 3600e3 - (Date.now() - st.shopAt));
@@ -468,7 +469,7 @@
       const p = a.p, rc = A.rarityColor(p.rarity), nat = natOf(p);
       return '<div class="fa-card"><span class="pt-face">' + A.portrait(p, { c1: '#3c4a5e', c2: '#d6dde6', c3: '#111' }, 48, rc) + ovr(p) + '</span>' +
         '<div class="fa-t"><span class="rpill" style="--rc:' + rc + '">' + D.RARITY[D.RIDX[p.rarity]].n + '</span><b>' + esc(p.name) + '</b>' +
-        '<i>' + p.pos + ' · ' + esc(M.typeOf(p).n) + ' · ' + flag(p.nat, 14) + ' ' + nat.n + '</i></div>' +
+        '<i>' + p.pos + ' · ' + esc(M.typeOf(p).n) + ' · ' + flag(p.nat, 14) + ' ' + nat.n + '</i>' + (a.why ? '<em class="fa-why">' + ic('check', 11) + esc(a.why) + '</em>' : '') + '</div>' +
         (a.sold ? '<span class="gc-sold">Signed</span>' : '<button class="buy" data-fa="' + i + '"' + (st.pucks < a.cost ? ' disabled' : '') + '>' + ic('puck', 12) + fmt(a.cost) + '</button>') + '</div>';
     }).join('') + '</div>';
     // rescout: a free refresh (watch an ad) every 30 minutes, or spend a rescout token any time
@@ -620,9 +621,12 @@
         return '<span class="ptro-b">' + ic(def.icon, 14) + g.n + (g.list.length > 1 ? ' <b>×' + g.list.length + '</b>' : '') + '<i>' + (g.list.length > 1 ? 'last ' : '') + 'F' + (lastA.fr || 1) + ' S' + lastA.season + '</i></span>';
       }).join('') + '</div>';
     }
-    h += '<div class="quad">' + (isG
-      ? '<div><b>' + p.career.gp + '</b><i>games</i></div><div><b>' + p.career.w + '</b><i>wins</i></div><div><b>' + p.career.so + '</b><i>shutouts</i></div><div><b>' + (p.career.sa ? (1 - p.career.ga / p.career.sa).toFixed(3).slice(1) : '—') + '</b><i>SV%</i></div>'
-      : '<div><b>' + p.career.gp + '</b><i>games</i></div><div><b>' + p.career.g + '</b><i>goals</i></div><div><b>' + p.career.a + '</b><i>assists</i></div><div><b>' + p.career.p + '</b><i>points</i></div>') + '</div>';
+  // season and career side by side in one compact table (takes less room than the old four big tiles)
+    const sv = l => l.sa ? (1 - l.ga / l.sa).toFixed(3).slice(1) : '—', pmf = v => (v > 0 ? '+' : '') + (v || 0);
+    const cols = isG ? [['GP', l => l.gp || 0], ['W', l => l.w || 0], ['L', l => l.l || 0], ['SO', l => l.so || 0], ['SV%', sv]]
+      : [['GP', l => l.gp || 0], ['G', l => l.g || 0], ['A', l => l.a || 0], ['P', l => l.p || 0], ['+/-', l => pmf(l.pm)], ['PIM', l => l.pim || 0]];
+    h += '<table class="pstats"><thead><tr><th></th>' + cols.map(c => '<th>' + c[0] + '</th>').join('') + '</tr></thead><tbody>' +
+      [['Season ' + st.season, p.season], ['Career', p.career]].map(([n, l]) => '<tr><td>' + n + '</td>' + cols.map(c => '<td>' + c[1](l || {}) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 
     h += '<div class="sec-h in"><h2>Attributes</h2><span class="sec-note">' + pucks(st.pucks) + '</span></div><div class="attrs">';
     keys.forEach(k => {
