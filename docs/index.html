@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b1219">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Breakaway</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Breakaway">
+<style>html{padding-top:env(safe-area-inset-top,0px)}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ONBOARDING -->
+<section id="onboard" class="screen">
+  <div class="ob-wrap">
+    <h1 class="ob-title">BREAKAWAY</h1>
+    <p class="ob-sub">Build the team. The season runs itself.</p>
+
+    <div class="jersey-stage"><div id="jerseyPrev"></div></div>
+
+    <label class="fld"><span>Favourite hockey country</span>
+      <div class="favrow"><span id="obFlag"></span><select id="obFav" class="txt"></select></div>
+      <em class="fld-note">More of your players and your early rivals come from here.</em>
+    </label>
+
+    <label class="fld"><span>Club name</span>
+      <div class="row2">
+        <input id="obCity" maxlength="14" placeholder="City">
+        <input id="obName" maxlength="14" placeholder="Nickname">
+      </div>
+    </label>
+    <button class="btn ghost sm" id="obShuffle">Shuffle name</button>
+
+    <label class="fld"><span>Colours</span>
+      <div class="swatches">
+        <label class="sw"><input type="color" id="c1" value="#c8102e"><em>Primary</em></label>
+        <label class="sw"><input type="color" id="c2" value="#ffffff"><em>Secondary</em></label>
+        <label class="sw"><input type="color" id="c3" value="#101820"><em>Accent</em></label>
+      </div>
+    </label>
+
+    <label class="fld"><span>Pattern</span><div id="obPatterns" class="chips"></div></label>
+    <label class="fld"><span>Crest</span><div id="obCrests" class="chips"></div></label>
+
+    <button class="btn primary big" id="obStart">Drop the puck</button>
+    <p class="ob-foot">20 players. Every attribute starts near 10. The ceiling is 99.</p>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="app" class="screen hidden">
+  <header id="hdr">
+    <div class="hdr-l">
+      <div id="hdrCrest" class="crest-mini"></div>
+      <div>
+        <div id="hdrTeam" class="hdr-team"></div>
+        <div id="hdrDiv" class="hdr-div"></div>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <div class="cur" title="Pucks"><b id="curPucks">0</b><i id="curRate">pucks</i></div>
+      <button id="btnTune" class="icon" aria-label="Settings"></button>
+    </div>
+  </header>
+  <div id="boosts" class="hidden"></div>
+
+  <main id="view"></main>
+
+  <nav id="nav">
+    <button data-tab="team" class="on"><i></i><span>Team</span></button>
+    <button data-tab="train"><i></i><span>Train</span></button>
+    <button data-tab="season"><i></i><span>Season</span></button>
+    <button data-tab="office"><i></i><span>Office</span></button>
+    <button data-tab="store"><i></i><span>Store</span></button>
+    <button data-tab="trophies"><i></i><span>Trophies</span></button>
+  </nav>
+</section>
+
+<div id="toasts"></div>
+<div id="modal" class="hidden"><div class="sheet" id="sheet"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/art.js"></script>
+<script src="js/model.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/live.js"></script>
+<script src="js/state.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+<script>
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script></body>
+</html>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+<radialGradient id="ice" cx=".5" cy=".38" r=".75"><stop offset="0" stop-color="#1b2a3c"/><stop offset="1" stop-color="#0a1018"/></radialGradient>
+<linearGradient id="pk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a414b"/><stop offset=".45" stop-color="#14181d"/><stop offset="1" stop-color="#050608"/></linearGradient>
+</defs>
+<rect width="512" height="512" fill="url(#ice)"/>
+<circle cx="256" cy="256" r="178" fill="none" stroke="#c8102e" stroke-width="14" opacity=".85"/>
+<circle cx="256" cy="256" r="10" fill="#c8102e" opacity=".9"/>
+<path d="M96 300h46M70 270h62M92 240h40" stroke="#6fd3ff" stroke-width="12" stroke-linecap="round" opacity=".75"/>
+<ellipse cx="270" cy="304" rx="112" ry="38" fill="#050608"/>
+<rect x="158" y="244" width="224" height="60" fill="url(#pk)"/>
+<ellipse cx="270" cy="244" rx="112" ry="38" fill="#2a3038"/>
+<ellipse cx="270" cy="244" rx="88" ry="27" fill="none" stroke="#4a525d" stroke-width="5"/>
+<path d="M188 228c22-10 50-14 80-14" stroke="#7d8794" stroke-width="7" stroke-linecap="round" fill="none" opacity=".7"/>
+</svg>
