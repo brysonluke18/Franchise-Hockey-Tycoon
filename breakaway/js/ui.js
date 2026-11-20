@@ -350,6 +350,7 @@
       const cv = $('#lvCanvas');
       if (!cv || tab !== 'season') return;
       const lv = G.CLOCK && G.CLOCK.current(), st = ST.get();
+      if (!st) return;   // save being switched
       if (lv) {
         const pre = lv.pre, tl = pre.tl, el = Date.now() - lv.start;
         let min, inter = null;
