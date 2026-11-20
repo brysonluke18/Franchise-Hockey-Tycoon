@@ -20,6 +20,7 @@
     const mult = multFor(ck.combo), v = ST.clickValue() * mult;
     credit(v);
     if (ST.countTap) ST.countTap();
+    if (ST.noteCombo) ST.noteCombo(ck.combo);
     return { v, mult, combo: ck.combo };
   }
   function tapGolden() { const mult = multFor(ck.combo), v = 25 * ST.clickValue() * mult; credit(v); return { v }; }
@@ -35,7 +36,7 @@
     { x: 0.15, y: 0.25, n: 'Top shelf' }, { x: 0.5, y: 0.2, n: 'Bar down' }, { x: 0.85, y: 0.25, n: 'Top shelf' },
     { x: 0.14, y: 0.76, n: 'Low glove' }, { x: 0.5, y: 0.8, n: 'Five-hole' }, { x: 0.86, y: 0.76, n: 'Low blocker' }
   ];
-  let el = null, cb = null, running = false, raf = 0, W = 0, H = 0, t0 = 0, dur = 90000;
+  let el = null, cb = null, running = false, raf = 0, W = 0, H = 0, t0 = 0, dur = 30000;
   let combo = 0, lastHit = 0, best = 0, banked = 0, hits = 0, misses = 0, carry = 0;
   let targets = [], tseq = 0, spawnAt = 0, hot = null, hotAt = 0, holes = [], shooter = null, banner = null;
 
@@ -55,7 +56,7 @@
     combo = 0; best = 0; banked = 0; hits = 0; misses = 0; carry = 0;
     targets = []; hot = null; holes = []; banner = null;
     const now = performance.now();
-    t0 = now; lastHit = now; spawnAt = 0; hotAt = now + 8000 + Math.random() * 4000;
+    t0 = now; lastHit = now; spawnAt = 0; hotAt = now + 3500 + Math.random() * 2500;
     el.innerHTML = ''; el.className = 'rink drill-gallery';
     measure();
     const st = ST.get(), b = netBox(), hs = holeSize(b);
@@ -81,13 +82,19 @@
   function cleanup() { running = false; cancelAnimationFrame(raf); if (el) { el.removeEventListener('pointerdown', onTap); el.innerHTML = ''; } }
   function result(complete) { return { banked, best, hits, misses, sec: Math.round((performance.now() - t0) / 1000), complete }; }
   function stop() { if (!running) return null; cleanup(); return result(false); }
-  function finish() { cleanup(); if (cb) cb(Object.assign({ type: 'end' }, result(true))); }
+  // a clean round pays a big finish bonus on top of the hits: accuracy matters as much as speed
+  function finish() {
+    const acc = hits / Math.max(1, hits + misses), bonus = hits >= 10 ? Math.round(ST.clickValue() * hits * acc * acc * 6) : 0;
+    if (bonus) pay(bonus);
+    cleanup(); if (cb) cb(Object.assign({ type: 'end', bonus, acc: Math.round(acc * 100) }, result(true)));
+  }
 
   function mult() { return multFor(combo); }
   function pay(v) { carry += v; const w = Math.floor(carry); if (w > 0) { ST.addPucks(w); banked += w; carry -= w; } }
 
   function spawn(now) {
-    if (targets.length >= 3 || now - spawnAt < 430) return;
+    // 30 hectic seconds: up to 5 lit holes at once, a new one every quarter second
+    if (targets.length >= 5 || now - spawnAt < 240) return;
     spawnAt = now;
     const free = holes.map((h, i) => i).filter(i => !holes[i].lit);
     if (!free.length) return;
@@ -95,7 +102,7 @@
     hl.lit = true;
     hl.node.classList.remove('done', 'ripple', 'expired');
     hl.node.classList.add('lit');
-    targets.push({ node: hl.node, x: hl.x, y: hl.y, born: now, life: 1600, hole: i });
+    targets.push({ node: hl.node, x: hl.x, y: hl.y, born: now, life: 1150, hole: i });
   }
   function unlight(t, why) {
     targets = targets.filter(x => x !== t);
@@ -142,7 +149,8 @@
         let inHot = hot && Math.hypot(hl.x - hot.x, hl.y - hot.y) < hot.r;
         const add_ = inHot ? 3 : snipe ? 2 : 1;
         combo += add_; hits++; lastHit = now; if (combo > best) best = combo;
-        const v = ST.clickValue() * 1.5 * mult() * add_;
+        const v = ST.clickValue() * 3 * mult() * add_;
+        if (ST.countTap) ST.countTap(2);
         pay(v);
         pop(hl.x, hl.y, '+' + ST.fmt(v), inHot ? 'hot' : snipe ? 'snipe' : '');
         pop(hl.x, hl.y - 26, inHot ? 'Hot zone +3' : snipe ? 'Snipe! ×2' : hl.n, 'lbl' + (snipe ? ' snipe' : ''));
@@ -172,7 +180,7 @@
       n.style.left = hot.x + 'px'; n.style.top = hot.y + 'px'; n.style.width = n.style.height = (hot.r * 2) + 'px';
       hot.node = n;
     }
-    if (hot && now > hot.until) { hot.node.remove(); hot = null; hotAt = now + 8000 + Math.random() * 4000; }
+    if (hot && now > hot.until) { hot.node.remove(); hot = null; hotAt = now + 3500 + Math.random() * 2500; }
     if (combo > 0 && now - lastHit > D.TUNING.comboDecayMs) { combo = 0; flash('Combo reset', 'bad'); }
     const decay = combo > 0 ? Math.max(0, 1 - (now - lastHit) / D.TUNING.comboDecayMs) : 0;
     if (cb) cb({ type: 'tick', combo, mult: mult(), decay, left: Math.max(0, dur - (now - t0)), dur, banked });

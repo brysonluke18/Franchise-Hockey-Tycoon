@@ -84,12 +84,14 @@
     return (capScale[k] = 1 / s);
   }
   // breakthroughs (p.capB) lift every cap of an Epic player, never past 99
+  // Legendary skaters still follow their type: the base is 95 Overall, so strengths reach 99 but a
+  // Sniper's grit tops out around 79. Breakthroughs raise the base the same way, never past 95.
+  const LEG_BASE = 95;
   function attrCap(p, key) {
-    const cap = capOf(p);
-    if (p.rarity === 'legendary') return 99;
-    const b = p.capB || 0;
-    if (p.pos === 'G') return Math.min(99, cap + b);
-    return Math.min(99, Math.round(cap * capShape(typeOf(p), key) * scaleFor(p)) + b);
+    const cap = capOf(p), b = p.capB || 0;
+    if (p.pos === 'G') return p.rarity === 'legendary' ? 99 : Math.min(99, cap + b);
+    const base = p.rarity === 'legendary' ? LEG_BASE : Math.min(LEG_BASE, cap + b);
+    return Math.min(99, Math.round(base * capShape(typeOf(p), key) * scaleFor(p)));
   }
 
   function blankLine(isG) {
@@ -116,12 +118,25 @@
       if (t.weak.indexOf(k) >= 0) v -= 3;
       p.a[k] = clamp(Math.round(v), 1, attrCap(p, k));
     });
+    Object.assign(p, bodyFor(p, rand));
     if (opts.avoid) opts.avoid[p.name] = 1;
     return p;
   }
+  // height (inches) and weight (lb): flavour only, shaped by position and type, weight follows height
+  const BODY = { F: [72.5, 1.9, 194], D: [74, 1.8, 205], G: [74, 1.6, 196] };
+  const BODY_TYPE = { power: [0.6, 14], enforcer: [1, 22], sniper: [-0.4, -6], playmaker: [-0.7, -8], twoway: [0, 0], ofd: [-0.5, -6], dfd: [0.8, 10], twd: [0, 0] };
+  function bodyFor(p, rnd) {
+    const g = p.pos === 'G' ? 'G' : p.pos === 'D' ? 'D' : 'F', b = BODY[g], t = BODY_TYPE[p.type] || [0, 0];
+    const gauss = () => (rnd() + rnd() + rnd() - 1.5) * 1.15;
+    const ht = clamp(Math.round(b[0] + t[0] + gauss() * b[1]), 67, 80);
+    const wt = clamp(Math.round(b[2] + t[1] + (ht - b[0]) * 6.5 + gauss() * 8), 160, 255);
+    return { ht, wt };
+  }
+  function heightText(ht) { return Math.floor(ht / 12) + '′' + (ht % 12) + '″'; }
 
   // older saves: goalies had four skills and players had no type
   function migratePlayer(p) {
+    if (!p.ht) { let s = 0; for (let i = 0; i < p.id.length; i++) s = (s * 31 + p.id.charCodeAt(i)) >>> 0; const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; Object.assign(p, bodyFor(p, r)); }
     if (p.pos === 'G' && p.a.reflexes != null) {
       const r = p.a.reflexes, pos = p.a.positioning || r;
       p.a = { gloveHigh: r, gloveLow: r, blockerHigh: r, blockerLow: r, fiveHole: r, quickness: r, positioning: pos, rebound: p.a.rebound || r, iq: pos, puckhandling: p.a.puckhandling || r };
@@ -164,7 +179,8 @@
   function overall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * eff(p, k); return Math.round(t); }
   function trainedOverall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * (p.a[k] || 0); return Math.round(t); }
   function isGold(p) { return overall(p) > 99; }
-  function upgradeCost(value) { const T = D.TUNING; return Math.round(T.costBase * Math.pow(T.costGrowth, value) * (T.costMult || 1)); }
+  // early points are discounted (about 40% at a rating of 10, full price from 30 up) so the first hours have plenty to buy
+  function upgradeCost(value) { const T = D.TUNING, early = Math.max(0.4, Math.min(1, (value + 2) / 32)); return Math.max(1, Math.round(T.costBase * Math.pow(T.costGrowth, value) * early * (T.costMult || 1))); }
   function xfSlots(p) { const i = D.RIDX[p.rarity]; return i >= 4 ? 2 : i >= 2 ? 1 : 0; }
   function hasXF(p, k) { return !!p && (p.xf === k || p.xf2 === k); }
 
@@ -242,7 +258,7 @@
     rand, ri, pick, clamp, gammaUnit, binomial, weightedIndex, uid,
     setFavorite, nationWeights, rollNation, nameFor, nationOf,
     makeGear, gearName, gearBonus, gearValue,
-    rollType, typeOf, makePlayer, migratePlayer, blankLine, attrCap,
+    rollType, typeOf, makePlayer, migratePlayer, heightText, blankLine, attrCap,
     eff, effAll, overall, trainedOverall, isGold, rarityOf, capOf, upgradeCost, xfSlots, hasXF, setBoostHook,
     chemMult, chemStars, pairKey, gamesChem, fitChem, unitChem, chemInfo, avgGames, CHEM_FADE,
     makeRoster, defaultLineup

@@ -64,7 +64,9 @@
     }
     const slotLbl = ['LW', 'C', 'RW'];
     const pct = v => (v >= 0 ? '+' : '−') + Math.abs(Math.round(v * 100)) + '%';
-    const chemBlock = (info) => '<div class="lg-chem"><span class="chem">Chem ' + stars(info.stars) + '</span><em>' + pct(info.mult - 1) + '</em></div>';
+    // unit Overall includes gear, trophies, legacy and active boosts, so weak spots show at a glance
+    const unitOvr = ids => { const ps = ids.map(id => by[id]).filter(Boolean); return ps.length ? Math.round(ps.reduce((s, p) => s + M.overall(p), 0) / ps.length) : 0; };
+    const chemBlock = (info, ov) => '<div class="lg-chem"><b class="u-ovr">' + ov + '</b><span class="chem">Chem ' + stars(info.stars) + '</span><em>' + pct(info.mult - 1) + '</em></div>';
     const chemNotes = (info) => '<div class="lg-n"><span class="cn g">' + info.games + ' GP together ' + pct(info.gb) + '</span>' +
       info.parts.map(x => '<span class="cn ' + (x.v >= 0 ? 'p' : 'm') + '">' + esc(x.t) + ' ' + pct(x.v) + (x.faded ? ' (fading)' : '') + '</span>').join('') + '</div>';
     h += '<section class="lgrid' + (editMode ? ' editing' : '') + '">';
@@ -72,9 +74,9 @@
       const f = L.lines[i], d = i < 3 ? L.pairs[i] : L.goalies;
       const fi = M.chemInfo(f, t.chem, f.map(id => by[id])), di = i < 3 ? M.chemInfo(d, t.chem, d.map(id => by[id])) : null;
       h += '<div class="lg-row"><div class="lg-h"><b>Line ' + (i + 1) + '</b></div><div class="lg-body">' +
-        '<div class="lg-col">' + chemBlock(fi) + '<div class="lg-tiles f">' + f.map((id, j) => gtile(by[id], slotLbl[j])).join('') + '</div>' + chemNotes(fi) + '</div>' +
+        '<div class="lg-col">' + chemBlock(fi, unitOvr(f)) + '<div class="lg-tiles f">' + f.map((id, j) => gtile(by[id], slotLbl[j])).join('') + '</div>' + chemNotes(fi) + '</div>' +
         '<i class="lg-gap"></i>' +
-        '<div class="lg-col">' + (di ? chemBlock(di) : '<div class="lg-chem"><span class="chem">Goalies · no chemistry</span></div>') +
+        '<div class="lg-col">' + (di ? chemBlock(di, unitOvr(d)) : '<div class="lg-chem"><b class="u-ovr">' + unitOvr(d.slice(0, 1)) + '</b><span class="chem">Starter · no chem</span></div>') +
         '<div class="lg-tiles d">' + d.map((id, j) => gtile(by[id], i < 3 ? 'D' : (j === 0 ? 'Starter' : 'Backup'))).join('') + '</div>' + (di ? chemNotes(di) : '') + '</div>' +
         '</div></div>';
     }
@@ -107,12 +109,12 @@
     if (drillMode) {
       return '<section class="hud"><div class="hud-row"><div class="hud-c"><b id="pCombo">0</b><span>combo</span></div>' +
         '<div class="hud-c mult"><b id="pMult">1.0×</b><span>multiplier</span></div><div class="hud-c bank"><b id="pPending">0</b><span>earned</span></div></div>' +
-        '<div class="combo-bar"><i id="pDecay" style="width:0%"></i></div><div class="hud-foot"><span>Shooting Drill</span><span class="num" id="pTime">90s</span></div>' +
+        '<div class="combo-bar"><i id="pDecay" style="width:0%"></i></div><div class="hud-foot"><span>Shooting Drill</span><span class="num" id="pTime">30s</span></div>' +
         '<div class="timebar"><i id="pTimeBar" style="width:100%"></i></div></section>' +
         '<div class="rink-wrap"><div class="rink" id="rink"></div>' +
         '<div class="rink-start" id="rinkStart"><div class="rs-card"><div class="rs-ic">' + ic('net', 30) + '</div><h3>Shooting Drill</h3>' +
-        '<ul><li>A hole in the tarp lights up. Tap it before its ring runs out.</li><li>Inside 0.3s is a SNIPE: double combo.</li><li>Each hit pays 1.5× a normal tap, times your combo.</li></ul>' +
-        '<div class="grid2"><button class="btn" data-act="drillback">Back</button><button class="btn primary" data-act="startround">Start · 90s</button></div></div></div></div>';
+        '<ul><li>A hole in the tarp lights up. Tap it before its ring runs out.</li><li>Inside 0.3s is a SNIPE: double combo.</li><li>Up to five holes lit at once. Each hit pays 3× a normal tap, times your combo.</li><li>Finish with 10+ hits for an accuracy bonus.</li></ul>' +
+        '<div class="grid2"><button class="btn" data-act="drillback">Back</button><button class="btn primary" data-act="startround">Start · 30s</button></div></div></div></div>';
     }
     const rush = ST.activeBoosts().find(b => b.k === 'rush');
     let h = '<section class="clicker">' +
@@ -125,7 +127,7 @@
       '</section>';
     h += '<div class="note c">Team overall ' + Math.round(ST.teamOvr()) + ' sets tap and passive income. Upgrade players and both go up. A golden puck shows up now and then: tap it for 25 taps’ worth.</div>';
     h += sh(ic('net', 18) + ' Shooting Drill') + '<section class="panel drillcard"><div class="dc-ic">' + ic('net', 30) + '</div>' +
-      '<div><b>90-second tarp round</b><i>Lit holes, snipes and hot zones. Pays 1.5× per hit.</i></div>' +
+      '<div><b>30-second tarp round</b><i>Hectic: up to five lit holes. 3× per hit plus an accuracy bonus.</i></div>' +
       '<button class="btn primary sm" data-act="drill">Play</button></section>';
     return h;
   }
@@ -156,7 +158,7 @@
   // daily practice goals under the clicker
   function goalHTML() {
     const t = ST.tapDay(), G = ST.TAP_GOALS, next = G[t.got], prev = t.got ? G[t.got - 1].n : 0;
-    if (!next) return '<div class="cg-h"><b>Practice goals done for today</b><i>' + G.length + '/' + G.length + ' · ' + fmt(t.n) + ' taps</i></div><div class="cg-bar"><i style="width:100%"></i></div>';
+    if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, pucks, a pick or shards</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
     const pct = Math.min(100, 100 * (t.n - prev) / (next.n - prev));
     return '<div class="cg-h"><b>Practice goal ' + (t.got + 1) + '/' + G.length + ': ' + fmt(t.n) + ' / ' + fmt(next.n) + ' taps</b><i>+' + next.s + ' shards' + (next.pick ? ' + a ' + ST.ord(next.pick) + '-round pick' : '') + '</i></div>' +
       '<div class="cg-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
@@ -206,7 +208,7 @@
     header();
     openModal('<div class="result"><div class="eyebrow">Shooting Drill · ' + out.sec + 's</div><h2 class="big-title">Round over</h2>' +
       '<div class="result-pucks">' + ic('puck', 34) + '<b>+' + fmt(out.banked) + '</b></div>' +
-      '<div class="trio"><div><b>' + out.best + '</b><i>best combo</i></div><div><b>' + out.hits + '</b><i>hits</i></div><div><b>' + out.misses + '</b><i>misses</i></div></div>' +
+      (out.bonus ? '<div class="note c">Accuracy ' + out.acc + '% · finish bonus +' + fmt(out.bonus) + ' pucks</div>' : '') + '<div class="trio"><div><b>' + out.best + '</b><i>best combo</i></div><div><b>' + out.hits + '</b><i>hits</i></div><div><b>' + out.misses + '</b><i>misses</i></div></div>' +
       '<div class="grid2"><button class="btn" data-act="again">Run it again</button><button class="btn primary" data-act="spend">Spend on the team</button></div></div>', true);
   }
   function stopPractice() {
@@ -232,7 +234,7 @@
         '<div class="ss-prog"><b>' + done + '<small>/' + total + '</small></b><i>games</i></div></div>' +
         livePanel('Game ' + (done + 1)) +
         '<div class="tick"><span>Next result</span><span class="tickbar"><i id="tickBar"></i></span><span id="tickTxt" class="num"></span></div>' +
-        (st.dev ? '<div class="ss-tools"><button class="toggle' + (st.demo ? ' on' : '') + '" data-act="demo"><span class="tg-dot"></span>Demo clock ' + (st.demo ? 'on · 8s' : 'off · 45s') + '</button>' +
+        (st.dev ? '<div class="ss-tools"><button class="toggle' + (st.demo ? ' on' : '') + '" data-act="demo"><span class="tg-dot"></span>Demo clock ' + (st.demo ? 'on · 8s' : 'off · 30s') + '</button>' +
         '<button class="btn sm devb" data-act="skip">' + ic('skip', 14) + ' Skip game (dev)</button></div>' : '') + '</section>';
     } else if (st.phase === 'playoffs') h += playoffPanel();
     else {
@@ -242,7 +244,7 @@
         (champ && lastS.div > 1 ? '<p class="sub">Promoted to <b>' + esc(d.n) + '</b>. Expect a season of catching up.</p>' : champ ? '<p class="sub">Elite champions. The league will be gunning for you.</p>' : '<p class="sub">Nothing is lost. Roster, pucks and gear carry over.</p>') +
         '<button class="btn primary big" data-act="nextseason">Start season ' + st.season + '</button></section>';
       if (ST.canPrestige()) h += '<section class="panel prest"><div class="eyebrow">Prestige ' + ((st.prestige || 0) + 1) + ' available</div><h3>Start over as a dynasty</h3>' +
-        '<p>Back to the Rec League with up to ' + ST.PRESTIGE_KEEP + ' Legacy players and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players restart as Rare but keep their trophies, get +2 to every attribute per franchise they carry, and can be promoted all the way to Legendary. Coach skills, achievements and the Elite-title requirement start over; franchise achievements never reset.</p>' +
+        '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players restart as Rare but keep their trophies, get +2 to every attribute per franchise they carry, and can be promoted all the way to Legendary. Coach skills, achievements and dailies start over. Hall of Fame gear, chemistry and franchise achievements carry over.</p>' +
         '<button class="btn gold" data-act="prestige">' + ic('trophy', 16) + ' Choose Legacy players</button></section>';
     }
     if (feed.length) h += sh('Results') + '<div class="feed">' + feed.slice(0, 20).map(f => '<span class="fchip ' + (f.win ? 'w' : 'l') + '"><b>' + (f.win ? 'W' : 'L') + '</b>' + f.gf + '–' + f.ga + (f.ot ? '<i>' + (f.so ? 'SO' : 'OT') + '</i>' : '') + '<em>' + esc(f.oppAbbr) + '</em></span>').join('') + '</div>';
@@ -476,10 +478,10 @@
     const dd = ST.dailyState();
     h += '<button class="dailyrow' + (dd.ready ? ' ready' : '') + '" data-act="daily">' + ic('season', 22) + '<span><b>Daily rewards</b><i>' +
       (dd.ready ? 'Day ' + dd.day + ' is ready to claim' : 'Day ' + dd.claimed + ' of 7 claimed · next one tomorrow') + '</i></span>' + ic('chev', 16, 'dimc') + '</button>';
-    h += sh(ic('trophy', 18) + ' Franchise achievements', '<span class="sec-note">Never reset · Hall of Fame gear + a trait per tier</span>');
+    h += sh(ic('trophy', 18) + ' Franchise achievements', '<span class="sec-note">Never reset · pick Hall of Fame gear or a trait</span>');
     h += '<section class="panel flush fach">' + ST.FACH.map(a => {
-      const got = (st.fach && st.fach[a.k]) || 0, need = a.tiers[got], v = ST.fachValue(a.k), done = need == null, can = !done && v >= need;
-      return '<div class="fa-r"><span class="fa-ic">' + ic('trophy', 20) + '</span><span class="fa-t"><b>' + a.n + ' <em>' + got + '/' + a.tiers.length + '</em></b><i>' + a.d + ' · ' + v + (done ? '' : ' / ' + need) + '</i>' +
+      const got = (st.fach && st.fach[a.k]) || 0, need = ST.fachNeed(a, got), v = ST.fachValue(a.k), done = need == null, can = !done && v >= need;
+      return '<div class="fa-r"><span class="fa-ic">' + ic('trophy', 20) + '</span><span class="fa-t"><b>' + a.n + ' <em>' + (a.repeat ? '×' + got : got + '/' + a.tiers.length) + '</em></b><i>' + a.d + ' · ' + fmt(v) + (done ? '' : ' / ' + fmt(need)) + '</i>' +
         '<span class="cg-bar"><i style="width:' + (done ? 100 : Math.min(100, 100 * v / need)) + '%"></i></span></span>' +
         (done ? '<span class="fa-done">' + ic('check', 16) + '</span>' : '<button class="buy' + (can ? ' primary' : '') + '" data-fach="' + a.k + '"' + (can ? '' : ' disabled') + '>Claim</button>') + '</div>';
     }).join('') + '</section>';
@@ -541,10 +543,18 @@
       '<div class="phero-face">' + A.portrait(p, st.team, 104, rc) + '</div>' +
       '<div class="phero-main"><span class="rpill" style="--rc:' + rc + '">' + rname(p) + '</span> <span class="tpill">' + esc(ty.n) + '</span> <button class="lockbtn' + (p.locked ? ' on' : '') + '" data-lock="' + p.id + '" aria-label="Trade lock">' + ic('lock', 12) + '<span>' + (p.locked ? 'Locked' : 'Lock') + '</span></button>' +
       '<div class="phero-first">' + esc(first(p)) + '</div><h2 class="phero-last">' + esc(last(p)) + '</h2>' +
-      '<div class="phero-meta"><b>#' + p.num + '</b> · ' + p.pos + ' · ' + flag(p.nat, 16) + ' ' + nat.n + '</div></div>' +
+      '<div class="phero-meta"><b>#' + p.num + '</b> · ' + p.pos + ' · ' + flag(p.nat, 16) + ' ' + nat.n + '</div><div class="phero-body">' + M.heightText(p.ht) + ' · ' + p.wt + ' lb</div></div>' +
       '<div class="phero-ovr">' + ovr(p, true) + '<i>overall</i></div></div>';
     h += '<div class="note how">' + ic('team', 14) + ' ' + esc(p.how || 'Founding roster, season 1') + '</div>';
-    if (p.awards && p.awards.length) h += '<div class="ptro">' + p.awards.slice().reverse().map(a => { const def = ST.AWARDS.find(x => x.k === a.k) || { icon: 'trophy' }; return '<span class="ptro-b">' + ic(def.icon, 14) + a.n + '<i>F' + (a.fr || 1) + ' S' + a.season + '</i></span>'; }).join('') + '</div>';
+    if (p.awards && p.awards.length) {
+      // one chip per award, with how many times he won it
+      const grp = {};
+      p.awards.forEach(a => { (grp[a.k] = grp[a.k] || { n: a.n, k: a.k, list: [] }).list.push(a); });
+      h += '<div class="ptro">' + Object.values(grp).sort((a, b) => b.list.length - a.list.length).map(g => {
+        const def = ST.AWARDS.find(x => x.k === g.k) || { icon: 'trophy' }, lastA = g.list[g.list.length - 1];
+        return '<span class="ptro-b">' + ic(def.icon, 14) + g.n + (g.list.length > 1 ? ' <b>×' + g.list.length + '</b>' : '') + '<i>' + (g.list.length > 1 ? 'last ' : '') + 'F' + (lastA.fr || 1) + ' S' + lastA.season + '</i></span>';
+      }).join('') + '</div>';
+    }
     h += '<div class="quad">' + (isG
       ? '<div><b>' + p.career.gp + '</b><i>games</i></div><div><b>' + p.career.w + '</b><i>wins</i></div><div><b>' + p.career.so + '</b><i>shutouts</i></div><div><b>' + (p.career.sa ? (1 - p.career.ga / p.career.sa).toFixed(3).slice(1) : '—') + '</b><i>SV%</i></div>'
       : '<div><b>' + p.career.gp + '</b><i>games</i></div><div><b>' + p.career.g + '</b><i>goals</i></div><div><b>' + p.career.a + '</b><i>assists</i></div><div><b>' + p.career.p + '</b><i>points</i></div>') + '</div>';
@@ -858,7 +868,7 @@
     const hrs = r.awaySec >= 3600 ? Math.floor(r.awaySec / 3600) + 'h ' + Math.round((r.awaySec % 3600) / 60) + 'm' : Math.max(1, Math.round(r.awaySec / 60)) + ' min';
     let h = '<div class="pick-h"><div class="eyebrow">Welcome back</div><h2 class="big-title">While you were away</h2><p class="sub">Gone ' + hrs + '.</p></div><div class="awl">';
     const row = (icn, b, i) => '<div class="aw-r">' + ic(icn, 20) + '<span><b>' + b + '</b>' + (i ? '<i>' + i + '</i>' : '') + '</span></div>';
-    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: a quarter of passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
+    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: half your passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
     if (r.games) {
       const rc = r.rec || { w: 0, l: 0, otl: 0, gf: 0, ga: 0 };
       h += row('season', r.games + ' game' + (r.games > 1 ? 's' : '') + ' played · ' + rc.w + '-' + rc.l + '-' + rc.otl, 'Goals ' + rc.gf + '–' + rc.ga + (r.gamePucks ? ' · +' + fmt(r.gamePucks) + ' pucks from wins' : ''));
@@ -879,17 +889,26 @@
   function prestigeSheet(keep) {
     if (!keep) prestSel = [];
     const st = ST.get(), list = st.team.roster.slice().sort((a, b) => M.overall(b) - M.overall(a));
-    let h = sheetHead('Franchise ' + ((st.prestige || 0) + 2), 'Pick up to ' + ST.PRESTIGE_KEEP + ' Legacy players. Everyone else retires.', 'data-act="close"');
+    let h = sheetHead('Franchise ' + ((st.prestige || 0) + 2), 'Pick up to ' + ST.keepLimit() + ' Legacy players. Everyone else retires.', 'data-act="close"');
     h += '<div class="prest-list">' + list.map(p => {
       const on = prestSel.indexOf(p.id) >= 0;
       return '<button class="tsel-r' + (on ? ' on' : '') + '" data-psel="' + p.id + '">' + A.portrait(p, st.team, 40, rcol(p)) +
         '<span class="tsel-t"><b>' + esc(p.name) + (p.legacyB ? ' <em class="leg">Legacy +' + p.legacyB + '</em>' : '') + '</b><i>' + p.pos + ' · ' + M.typeOf(p).ab + ' · ' + M.overall(p) + ' ovr · ' + (p.awards || []).length + ' awards</i></span><span class="tsel-c">' + (on ? ic('check', 16) : '') + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="note">What resets: division, season count, pucks, shards, tape, gear, picks, traits, facilities, coach skills and achievements. What stays: Legacy players (as Rare, with their trophies, plus +2 every attribute), your coach, history, trophy case, franchise achievements, jersey and logo.</div>';
+    h += '<div class="note">What resets: division, season count, pucks, shards, tape, regular gear, picks, traits, facilities, coach skills, achievements and daily rewards. What stays: Legacy players (as Rare, with their trophies, plus +2 every attribute), Hall of Fame gear, chemistry, your coach, history, trophy case, franchise achievements, jersey and logo. You can carry one more Legacy player with every new franchise, up to five.</div>';
     h += '<button class="btn gold big" data-act="doprestige">' + ic('trophy', 16) + ' Start Franchise ' + ((st.prestige || 0) + 2) + ' with ' + prestSel.length + ' Legacy player' + (prestSel.length === 1 ? '' : 's') + '</button>';
     openModal(h);
   }
-  function togglePrest(id) { const i = prestSel.indexOf(id); if (i >= 0) prestSel.splice(i, 1); else if (prestSel.length < ST.PRESTIGE_KEEP) prestSel.push(id); const sc = $('#sheet').scrollTop; prestigeSheet(true); $('#sheet').scrollTop = sc; }
+  function togglePrest(id) { const i = prestSel.indexOf(id); if (i >= 0) prestSel.splice(i, 1); else if (prestSel.length < ST.keepLimit()) prestSel.push(id); const sc = $('#sheet').scrollTop; prestigeSheet(true); $('#sheet').scrollTop = sc; }
+  // franchise achievement reward: pick the Hall of Fame gear or the trait
+  function fachSheet() {
+    const st = ST.get(), o = st.fachOffer; if (!o) return;
+    const a = ST.FACH.find(x => x.k === o.k), x = D.XFACTORS.find(y => y.k === o.x), slot = D.GEAR_SLOTS[o.g.kind].find(s => s.k === o.g.slot);
+    let h = '<div class="pick-h"><div class="eyebrow">' + esc(a.n) + ' · tier ' + o.tier + '</div><h2 class="big-title">Pick your reward</h2><p class="sub">One or the other. Hall of Fame gear survives every franchise reset.</p></div><div class="picks two">';
+    h += '<button class="pick" data-fachpick="gear" style="--rc:' + D.GOLD + '"><span class="pick-art">' + A.gearIcon(o.g.slot, D.GOLD, 44) + '</span><span class="pick-k">Hall of Fame gear</span><b>' + slot.n + (o.g.kind === 'goalie' ? ' (G)' : '') + '</b><i>+' + o.g.p + ' ' + D.ATTR_LABEL[slot.p] + (o.g.s ? ', +' + o.g.s + ' ' + D.ATTR_LABEL[slot.s] : '') + '</i></button>';
+    h += '<button class="pick" data-fachpick="trait" style="--rc:' + A.rarityColor(x.r) + '"><span class="pick-art">' + ic('bolt', 44) + '</span><span class="pick-k">Trait</span><b>' + esc(x.n) + '</b><i>' + esc(x.d) + '</i></button></div>';
+    openModal('<div class="result">' + h + '</div>', true);
+  }
   // weekly daily-reward calendar
   function dailySheet() {
     const d = ST.dailyState(), ready = d.ready;
@@ -932,6 +951,7 @@
     const st = ST.get();
     if (!st || P.running || modalOpen()) return;
     if (cards.length && cards[0].kind === 'awards') { awardsSheet(cards.shift()); return; }
+    if (st.fachOffer) { fachSheet(); return; }
     if (st.pending) { pendingSheet(); return; }
     if (cards.length) showCard(cards.shift());
   }
@@ -1009,8 +1029,18 @@
     const act = ST.activeBoosts();
     $('#boosts').innerHTML = act.map(b => { const d = D.BOOSTS.find(x => x.k === b.k); const s = Math.max(0, Math.ceil((b.until - Date.now()) / 1000)); return '<span class="bchip">' + ic('bolt', 12) + d.n + ' <b>' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + '</b></span>'; }).join('');
     $('#boosts').classList.toggle('hidden', !act.length);
-    const n = (st.achClaim || []).length, nb = document.querySelector('#nav [data-tab=trophies]');
-    if (nb) nb.dataset.badge = n ? n : '';
+    // red dots: something to do on that tab (gear to fit, a promotion, picks to draft, a game to play, rewards)
+    const al = ST.alerts();
+    ['team', 'store', 'season', 'trophies'].forEach(k => {
+      const b = document.querySelector('#nav [data-tab=' + k + ']'); if (!b) return;
+      b.dataset.badge = al[k] ? (k === 'season' ? '!' : al[k]) : '';
+    });
+    // playoff banner on every other tab while a game is waiting to be played
+    let pb = document.getElementById('poBanner');
+    if (!pb) { pb = document.createElement('button'); pb.id = 'poBanner'; pb.className = 'pobanner hidden'; pb.dataset.gotab = 'season'; $('#boosts').after(pb); }
+    const lv = G.CLOCK && G.CLOCK.current(), waiting = st.phase === 'playoffs' && st.playoff && !(lv && lv.pre.kind === 'playoff') && tab !== 'season';
+    pb.classList.toggle('hidden', !waiting);
+    if (waiting) pb.innerHTML = ic('trophy', 16) + '<span>Playoffs · Game ' + (st.playoff.log.length + 1) + ' vs ' + esc(st.playoff.opp ? st.playoff.opp.abbr : '') + ' is waiting. Series ' + st.playoff.w + '–' + st.playoff.l + '</span><b>Play</b>';
   }
   function render() {
     const v = $('#view');
@@ -1042,7 +1072,7 @@
   G.UI = {
     render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet,
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
-    tradeSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, locked, arming, modalOpen,
+    tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },
     get tab() { return tab; },
     get selSwap() { return selSwap; }, set selSwap(v) { selSwap = v; },

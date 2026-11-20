@@ -932,3 +932,14 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .lockbtn{position:static;display:inline-flex;vertical-align:middle;padding:3px 8px;font-size:10px;gap:4px;margin-left:2px}
 #onboard{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
 #onboard.hidden{display:none}
+.picks.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pick i{font-style:normal;font-size:11px;color:var(--dim);display:block;margin-top:3px}
+.phero-body{font-size:12px;color:var(--dim);margin-top:2px}
+.lg-chem .u-ovr{font:800 13px/1 var(--fd);color:var(--ink);background:var(--bg4);padding:3px 6px;border-radius:6px;margin-right:2px}
+.lg-chem{justify-content:flex-start;gap:6px}
+.lg-chem em{margin-left:auto}
+.pobanner{display:flex;align-items:center;gap:10px;width:calc(100% - 28px);margin:0 14px 6px;padding:9px 12px;border-radius:12px;background:linear-gradient(90deg,rgba(232,180,58,.22),rgba(232,180,58,.08));border:1px solid rgba(232,180,58,.5);color:var(--gold);text-align:left;animation:pbpulse 2.2s ease-in-out infinite}
+.pobanner span{flex:1;min-width:0;color:var(--ink);font-size:12.5px}
+.pobanner b{font:800 13px/1 var(--fd);text-transform:uppercase;letter-spacing:.06em}
+@keyframes pbpulse{50%{box-shadow:0 0 0 3px rgba(232,180,58,.18)}}
+.lg-chem{flex-wrap:wrap;row-gap:2px;min-width:0}.lg-chem .chem{white-space:nowrap}

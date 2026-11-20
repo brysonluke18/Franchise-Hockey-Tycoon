@@ -630,18 +630,20 @@
   }
   function setAutoUp(on) { st.autoUp = !!on; save(); }
   function setAutoScrap(ri) { st.autoScrap = ri; save(); }
-  function offerPick(title, tier) {
-    if (st.pending) { st.pickQueue = st.pickQueue || []; st.pickQueue.push({ title, tier }); return; }
-    st.pending = buildPick(title, tier);
+  function offerPick(title, tier, theme) {
+    if (st.pending) { st.pickQueue = st.pickQueue || []; st.pickQueue.push({ title, tier, theme }); return; }
+    st.pending = buildPick(title, tier, theme);
     emit('pending', st.pending);
   }
-  function buildPick(title, tier) {
+  // theme (from an achievement) aims the gear at a matching slot and the shards at a matching pool:
+  // goal achievements pay sticks and forward shards, shutouts pay goalie pads and goalie shards, and so on
+  function buildPick(title, tier, theme) {
     const rk = D.RARITY[Math.min(4, Math.max(0, tier))].k;
     const opts = [];
-    const g = smartGear(rk);
+    const g = theme && theme.slot ? M.makeGear(rk, theme.kind || 'skater', theme.slot) : smartGear(rk);
     opts.push({ t: 'gear', label: M.gearName(g), rarity: rk, g });
     const sp = Math.round((10 + tier * 14) * (1 + D.DIVISIONS.findIndex(x => x.d === st.div) * 0.15));
-    const pos = M.pick(['F', 'F', 'F', 'F', 'D', 'D', 'D', 'G']);
+    const pos = theme && theme.pool ? theme.pool : M.pick(['F', 'F', 'F', 'F', 'D', 'D', 'D', 'G']);
     opts.push({ t: 'shards', label: sp + ' shards', pos, n: sp });
     const roll = M.rand();
     const xfPool = D.XFACTORS.filter(x => D.RIDX[x.r] <= Math.min(4, tier + 1));
@@ -658,7 +660,7 @@
   }
   function nextQueued() {
     st.pending = null;
-    if (st.pickQueue && st.pickQueue.length) { const q = st.pickQueue.shift(); st.pending = q.pending || buildPick(q.title, q.tier); }
+    if (st.pickQueue && st.pickQueue.length) { const q = st.pickQueue.shift(); st.pending = q.pending || buildPick(q.title, q.tier, q.theme); }
     save(); emit('pending', st.pending);
   }
   function takePick(i) {
@@ -836,7 +838,7 @@
   }
   function coachCost(track) { return Math.round(500 * Math.pow(1.45, st.coach[track]) * payout()); }
   function setStyle(s) { st.coach.style = s; save(); }
-  function offlineHours() { return 2 + 2 * (st.coach.bench / 20); }
+  function offlineHours() { return 4 + 4 * (st.coach.bench / 20); }
   function offlineCap() { const T = D.TUNING; return Math.round(T.offlineCapBase + (T.offlineCapMax - T.offlineCapBase) * (st.coach.bench / 20)); }
 
   // ---------------------------------------------------------------- draft picks
@@ -1054,11 +1056,16 @@
   // Legacy players drop to Rare with Division 8 ratings, but keep their trophies, look and history, get +2 to
   // every attribute per prestige they carry, and can be promoted all the way to Legendary with shards.
   // The whole club earns +10% income per prestige level.
-  const PRESTIGE_KEEP = 3;
-  function canPrestige() { return !!st && (st.eliteTitles || 0) > 0 && st.phase === 'offseason'; }
+  // Legacy slots grow with each franchise: 1 for your second franchise, 2 for your third, up to 5
+  function keepLimit() { return Math.min(5, (st.prestige || 0) + 1); }
+  // only in the offseason right after winning the Division 1 championship
+  function canPrestige() { const h = st && st.history[0]; return !!h && st.phase === 'offseason' && h.result === 'Champion' && h.div === 1 && (h.fr || 1) === franchiseNo(); }
   function prestige(keepIds) {
     if (!canPrestige()) return false;
-    const keep = (keepIds || []).slice(0, PRESTIGE_KEEP).map(byId).filter(Boolean);
+    const keep = (keepIds || []).slice(0, keepLimit()).map(byId).filter(Boolean);
+    // Hall of Fame gear is forever: collect it from the locker and every player before the reset
+    const hof = st.gear.filter(g => g.hof);
+    st.team.roster.forEach(p => Object.keys(p.gear).forEach(k => { if (p.gear[k] && p.gear[k].hof) hof.push(p.gear[k]); }));
     st.prestige = (st.prestige || 0) + 1;
     keep.forEach(p => {
       Object.keys(p.gear).forEach(k => { p.gear[k] = null; });
@@ -1076,9 +1083,8 @@
     fresh.forEach(p => { if (used[p.num]) { let n = 1; while (used[n]) n++; p.num = n; } used[p.num] = 1; });
     st.team.roster = keep.concat(fresh);
     st.team.lineup = M.defaultLineup(st.team.roster);
-    st.team.chem = {};
     st.div = 8; st.promos = 0; st.eliteSeasons = 0;
-    st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = []; st.picks = {}; st.xfs = [];
+    st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = hof; st.picks = {}; st.xfs = [];
     st.fac = {}; applyFac(); st.pending = null; st.pickQueue = [];
     // a new franchise starts clean: coach skills, achievements and the Elite-title requirement all reset;
     // lifetime totals are kept for the franchise achievements
@@ -1087,61 +1093,122 @@
     st.life.elite = (st.life.elite || 0) + (st.eliteTitles || 0); st.eliteTitles = 0;
     st.life.legacy = (st.life.legacy || 0) + keep.length;
     st.ach = {}; st.achClaim = []; st.season = 1;
+    st.daily = { day: 1, claimed: 0, last: null, ready: true }; st.tapDay = null; st.tapNext = 0;
     startSeason();
     toast('Franchise ' + (st.prestige + 1) + ' begins! Back to the Rec League with ' + keep.length + ' Legacy player' + (keep.length === 1 ? '' : 's') + ' and +' + (st.prestige * 10) + '% income.', 'gold');
     save(); emit('roster'); emit('newSeason', {});
     return true;
   }
   // ---------------------------------------------------------------- franchise achievements (never reset)
+  // Franchise Builder pays out every new franchise; the others are long career and tapping goals.
+  // Each claim lets you pick one reward: a Hall of Fame gear piece or a trait.
   const FACH = [
-    { k: 'franchises', n: 'Franchise Builder', d: 'Start new franchises', tiers: [1, 2, 3, 5] },
-    { k: 'elite', n: 'Elite Dynasty', d: 'Win Elite (Division 1) titles, across every franchise', tiers: [1, 3, 5, 10] },
-    { k: 'legacy', n: 'Living Legends', d: 'Carry Legacy players into new franchises', tiers: [1, 3, 6, 10] }
+    { k: 'franchises', n: 'Franchise Builder', d: 'Start a new franchise (pays every time)', repeat: true },
+    { k: 'points', n: 'Franchise Icon', d: 'One player reaches career points', tiers: [1000, 2500, 5000] },
+    { k: 'games', n: 'Iron Man', d: 'One player reaches career games played', tiers: [500, 1000, 2000] },
+    { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [5000, 10000] }
   ];
+  function careerBest() {
+    const life = st.life = st.life || {};
+    st.team.roster.forEach(p => {
+      if (p.pos !== 'G') life.maxPts = Math.max(life.maxPts || 0, p.career.p || 0);
+      life.maxGp = Math.max(life.maxGp || 0, p.career.gp || 0);
+    });
+    return life;
+  }
   function fachValue(k) {
-    const life = st.life || {};
     if (k === 'franchises') return st.prestige || 0;
-    if (k === 'elite') return (life.elite || 0) + (st.eliteTitles || 0);
-    if (k === 'legacy') return life.legacy || 0;
+    const life = careerBest();
+    if (k === 'points') return life.maxPts || 0;
+    if (k === 'games') return life.maxGp || 0;
+    if (k === 'combo') return st.bestCombo || 0;
     return 0;
   }
+  function fachNeed(a, got) { return a.repeat ? got + 1 : a.tiers[got]; }
   function makeHofGear() {
     const kind = M.rand() < 0.15 ? 'goalie' : 'skater', slot = M.pick(D.GEAR_SLOTS[kind]).k;
     const g = M.makeGear('legendary', kind, slot);
     g.hof = true; g.p = Math.round(g.p * 1.35) + 1; g.s = Math.round((g.s || 0) * 1.35) + 1;
     return g;
   }
-  // each tier pays a Hall of Fame gear piece and a trait (Legendary-grade traits from tier 2)
-  function claimFach(k) {
+  // step 1: roll the two choices for the next tier and hold them until you pick
+  function offerFach(k) {
     const a = FACH.find(x => x.k === k); if (!a) return null;
     st.fach = st.fach || {};
-    const got = st.fach[k] || 0, need = a.tiers[got];
+    const got = st.fach[k] || 0, need = fachNeed(a, got);
     if (need == null || fachValue(k) < need) return null;
-    st.fach[k] = got + 1;
-    const g = makeHofGear(); st.gear.push(g);
-    const pool = D.XFACTORS.filter(x => got >= 1 ? D.RIDX[x.r] >= 3 : D.RIDX[x.r] >= 2), x = M.pick(pool);
-    st.xfs.push(x.k);
-    toast(a.n + ' ' + (got + 1) + ': ' + M.gearName(g) + ' and the ' + x.n + ' trait', 'gold');
-    save(); emit('roster');
-    return { g, x };
+    const pool = D.XFACTORS.filter(x => D.RIDX[x.r] >= (got >= 1 ? 3 : 2));
+    st.fachOffer = { k, tier: got + 1, g: makeHofGear(), x: M.pick(pool).k };
+    save(); return st.fachOffer;
+  }
+  // step 2: take the gear or the trait
+  function takeFach(choice) {
+    const o = st.fachOffer; if (!o) return false;
+    const a = FACH.find(x => x.k === o.k);
+    st.fach[o.k] = (st.fach[o.k] || 0) + 1;
+    if (choice === 'gear') { st.gear.push(o.g); toast(a.n + ' ' + o.tier + ': ' + M.gearName(o.g), 'gold'); }
+    else { st.xfs.push(o.x); toast(a.n + ' ' + o.tier + ': the ' + D.XFACTORS.find(x => x.k === o.x).n + ' trait', 'gold'); }
+    st.fachOffer = null;
+    save(); emit('roster'); return true;
+  }
+  // what the player can act on right now, for the red dots on the tab bar
+  function alerts() {
+    const out = { team: 0, store: 0, season: 0, trophies: 0 };
+    if (!st) return out;
+    const ids = lineupIds();
+    let gearUp = false;
+    ids.forEach(id => {
+      const p = byId(id); if (!p || gearUp) return;
+      const kind = p.pos === 'G' ? 'goalie' : 'skater';
+      D.GEAR_SLOTS[kind].forEach(s => {
+        const cur = p.gear[s.k], best = st.gear.filter(g => g.kind === kind && g.slot === s.k).reduce((m, g) => Math.max(m, M.gearValue(g)), -1);
+        if (best >= 0 && (!cur || best > M.gearValue(cur))) gearUp = true;
+      });
+    });
+    if (gearUp) out.team++;
+    ids.forEach(id => { const p = byId(id); if (p && ((canPromote(p) && st.shards[poolOf(p)] >= promoCost(p)) || (canBreak(p) && st.shards[poolOf(p)] >= breakCost(p)))) out.team++; });
+    out.store = pickCount();
+    if (st.phase === 'playoffs' || st.phase === 'offseason') out.season = 1;
+    out.trophies = (st.achClaim || []).length + (dailyState().ready ? 1 : 0) +
+      FACH.filter(a => { const got = (st.fach && st.fach[a.k]) || 0, need = fachNeed(a, got); return need != null && fachValue(a.k) >= need; }).length;
+    return out;
   }
   // ---------------------------------------------------------------- daily, demo, dev
   // daily practice goals: tap milestones that pay shards (and a pick at the top), so tapping matters beyond pucks
   const TAP_GOALS = [{ n: 200, s: 12 }, { n: 800, s: 30 }, { n: 2000, s: 40, pick: 5 }];
   function tapDay() { const d = new Date().toDateString(); if (!st.tapDay || st.tapDay.d !== d) st.tapDay = { d, n: 0, got: 0 }; return st.tapDay; }
-  function countTap() {
+  // after the daily goals, every 500 more taps drops something: gear, a late pick, pucks or shards, in turn
+  const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pucks', 'pick', 'shards'];
+  function countTap(n) {
     if (!st) return;
-    const t = tapDay(); t.n++;
-    const g = TAP_GOALS[t.got];
-    if (g && t.n >= g.n) {
-      t.got++;
-      const F = Math.round(g.s * 0.5), Dd = Math.round(g.s * 0.35), Gg = g.s - F - Dd;
-      st.shards.F += F; st.shards.D += Dd; st.shards.G += Gg;
-      if (g.pick) addPick(g.pick);
-      toast('Practice goal ' + t.got + '/' + TAP_GOALS.length + ': ' + g.n + ' taps today. +' + F + ' F, +' + Dd + ' D, +' + Gg + ' G shards' + (g.pick ? ' and a ' + ord(g.pick) + '-round pick' : ''), 'promo');
-      save();
+    const t = tapDay();
+    for (let i = 0; i < (n || 1); i++) {
+      t.n++;
+      const g = TAP_GOALS[t.got];
+      if (g && t.n >= g.n) {
+        t.got++;
+        const F = Math.round(g.s * 0.5), Dd = Math.round(g.s * 0.35), Gg = g.s - F - Dd;
+        st.shards.F += F; st.shards.D += Dd; st.shards.G += Gg;
+        if (g.pick) addPick(g.pick);
+        toast('Practice goal ' + t.got + '/' + TAP_GOALS.length + ': ' + g.n + ' taps today. +' + F + ' F, +' + Dd + ' D, +' + Gg + ' G shards' + (g.pick ? ' and a ' + ord(g.pick) + '-round pick' : ''), 'promo');
+        save();
+      } else if (!g) {
+        const past = t.n - TAP_GOALS[TAP_GOALS.length - 1].n;
+        if (past > 0 && past % TAP_DROP_EVERY === 0) tapDrop(t);
+      }
     }
   }
+  function tapDrop(t) {
+    const kind = TAP_DROPS[(t.drops = (t.drops || 0) + 1) % TAP_DROPS.length];
+    let msg = '';
+    if (kind === 'gear') { const i = D.DIVISIONS.findIndex(x => x.d === st.div); const g = smartGear(D.RARITY[Math.min(4, M.weightedIndex(DROP_W[i]))].k); st.gear.push(g); msg = M.gearName(g); }
+    else if (kind === 'pucks') { const pk = Math.round(clickValue() * 150); st.pucks += pk; msg = fmt(pk) + ' pucks'; }
+    else if (kind === 'pick') { const r = M.rand() < 0.5 ? 6 : 7; addPick(r); msg = 'a ' + ord(r) + '-round pick'; }
+    else { const s = 6 + D.DIVISIONS.findIndex(x => x.d === st.div) * 2; st.shards.F += s; st.shards.D += Math.round(s / 2); msg = s + ' F and ' + Math.round(s / 2) + ' D shards'; }
+    toast('Practice bonus: ' + msg, 'promo');
+    save(); emit('roster');
+  }
+  function noteCombo(c) { if (st && c > (st.bestCombo || 0)) { st.bestCombo = c; bump('combo', c); } }
   // weekly login calendar: claim once a day; miss a day and it restarts at day 1; day 7 is the big one
   const DAILY = [
     { n: 'Pucks', d: 'A bag of pucks' },
@@ -1189,7 +1256,7 @@
   }
   function applySpeed() {
     const T = D.TUNING;
-    if (st && st.demo) { T.gameIntervalSec = 8; T.playoffGameSec = 12; } else { T.gameIntervalSec = 45; T.playoffGameSec = 45; }
+    if (st && st.demo) { T.gameIntervalSec = 8; T.playoffGameSec = 12; } else { T.gameIntervalSec = 30; T.playoffGameSec = 36; }
   }
   function setDemo(on) { st.demo = !!on; applySpeed(); save(); }
   function devGrant() {
@@ -1222,7 +1289,7 @@
     if (!c) return false;
     st.achClaim.splice(idx, 1);
     const a = D.ACHIEVEMENTS.find(x => x.k === c.k);
-    offerPick(a.n + ' · ' + c.t, Math.min(4, Math.floor(c.tier / 2) + 1));
+    offerPick(a.n + ' · ' + c.t, Math.min(4, Math.floor(c.tier / 2) + 1), a.theme);
     save(); return true;
   }
 
@@ -1286,7 +1353,7 @@
     if (awaySec > 60) {
       const sec = Math.max(0, Math.min(awaySec, offlineHours() * 3600 - st.offDay.sec));
       st.offDay.sec += sec;
-      pucks = Math.round(0.25 * passiveRate() * sec); st.pucks += pucks;
+      pucks = Math.round(0.5 * passiveRate() * sec); st.pucks += pucks;
     }
     let n = 0;
     const me0 = teamById('me') ? Object.assign({}, teamById('me')) : null, rank0 = sorted().findIndex(t => t.id === 'me') + 1;
@@ -1326,10 +1393,10 @@
     spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,
     upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, BREAK_MAX, shardPrice, buyShards,
     teamOvr, clickValue, passiveRate, tickPassive, activeBoosts, buyBoost, activateBoost, boostCost,
-    fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, TAP_GOALS, setDemo, applySpeed, devGrant, claimAch,
+    fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
     AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks,
     refreshAgents, signAgent, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
-    facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, PRESTIGE_KEEP, FACH, fachValue, claimFach, setAutoScrap, setAutoUp,
+    facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, keepLimit, FACH, fachValue, fachNeed, offerFach, takeFach, setAutoScrap, setAutoUp,
     save, load, wipe, catchUp, toast, fmt, findGear, freeNumber, checkGold, rollGearDrop, ord
   };
 })(window.BK = window.BK || {});

@@ -110,7 +110,7 @@
   function onPointer(e) {
     const g = e.target.closest('.golden');
     if (g) { e.preventDefault(); UI.clickTap(e.clientX, e.clientY, true); return; }
-    const pk = e.target.closest('#ckPuck');
+    const pk = e.target.closest('#ckArena');
     if (pk) { e.preventDefault(); UI.clickTap(e.clientX, e.clientY, false); }
   }
 
@@ -118,11 +118,12 @@
   function onClick(e) {
     const st = ST.get();
     const T = e.target;
-    if (!st || T.closest('#ckPuck') || T.closest('.golden')) return;
+    if (!st || T.closest('#ckArena') || T.closest('.golden')) return;
     // reward and results sheets cannot be tapped past, and ignore taps for a moment after opening
     if (T.closest('#sheet') && UI.arming()) return;
     if (T.id === 'modal') { if (!UI.locked()) UI.closeModal(); return; }
 
+    const gt = T.closest('[data-gotab]'); if (gt) { UI.setTab(gt.dataset.gotab); return; }
     const tab = T.closest('#nav button');
     if (tab) { UI.setTab(tab.dataset.tab); return; }
     if (T.closest('#btnTune')) { UI.tuneSheet(); return; }
@@ -145,7 +146,8 @@
     if ((x = el('[data-trade]'))) { UI.tradeSheet(+x.dataset.trade); return; }
     if ((x = el('[data-batch]'))) { ST.batchTrade(+x.dataset.batch); UI.render(); UI.header(); return; }
     if ((x = el('[data-lock]'))) { ST.toggleLock(x.dataset.lock); UI.playerSheet(x.dataset.lock); UI.render(); return; }
-    if ((x = el('[data-fach]'))) { if (ST.claimFach(x.dataset.fach)) UI.render(); return; }
+    if ((x = el('[data-fach]'))) { if (ST.offerFach(x.dataset.fach)) UI.fachSheet(); return; }
+    if ((x = el('[data-fachpick]'))) { if (ST.takeFach(x.dataset.fachpick)) { UI.closeModal(); UI.render(); } return; }
     if ((x = el('[data-psel]'))) { UI.togglePrest(x.dataset.psel); return; }
     if ((x = el('[data-tauto]'))) { UI.autoTrade(+x.dataset.tauto); return; }
     if ((x = el('[data-tclear]'))) { UI.clearTrade(+x.dataset.tclear); return; }

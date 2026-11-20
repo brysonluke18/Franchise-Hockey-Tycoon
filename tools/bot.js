@@ -133,7 +133,7 @@ window.runBot = function (opts) {
       let usedH = 0, usedG = 0;
       for (let s = 0; s < opts.sessions; s++) {
         const h = Math.max(0, Math.min(gapH, ST.offlineHours() - usedH)); usedH += h;
-        const off = ST.passiveRate() * 0.25 * h * 3600;
+        const off = ST.passiveRate() * 0.5 * h * 3600;
         st.pucks += off; tot.offline += off;
         let banked = Math.max(0, Math.min(Math.floor(gapH * 3600 / T.gameIntervalSec), ST.offlineCap() - usedG)); usedG += banked;
         while (banked-- > 0 && st.phase === 'season') step(true);
