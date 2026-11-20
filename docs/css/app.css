@@ -1061,3 +1061,19 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .gt-mk .mk svg{width:9px;height:9px}
 .gt-mk .mk.g{background:#5cc8ff}.gt-mk .mk.t{background:#4fd18b}.gt-mk .mk.r{background:#f2c230}
 @media (max-width:560px){.gt-mk{top:2px;right:2px;gap:1px}.gt-mk .mk{width:12px;height:12px}.gt-mk .mk svg{width:7px;height:7px}}
+.panel.tradein{display:flex;align-items:center;gap:12px}
+.panel.tradein div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.panel.tradein i{font-style:normal;font-size:12px;color:var(--dim2)}
+.tin-q{margin:12px 0 10px;padding:10px 12px;border-radius:10px;background:var(--bg3);font-size:13.5px}
+.tin-q b{color:var(--good)}
+.fa-rs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px;font-size:12.5px;color:var(--dim)}
+.fa-rs span{flex:1;min-width:150px;display:flex;align-items:center;gap:6px}
+.mk-key{display:flex;flex-wrap:wrap;gap:12px;margin:2px 2px 8px;font-size:11.5px;color:var(--dim)}
+.mk-key span{display:inline-flex;align-items:center;gap:5px}
+.mk-key .mk{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#0b0f14}
+.mk-key .mk svg{width:9px;height:9px}
+.mk-key .mk.g{background:#5cc8ff}.mk-key .mk.t{background:#4fd18b}.mk-key .mk.r{background:#f2c230}
+/* standings: fit phone widths without a horizontal scrollbar showing above Team leaders */
+.scroll-x{scrollbar-width:none}
+.scroll-x::-webkit-scrollbar{display:none}
+@media (max-width:560px){.scroll-x table th,.scroll-x table td{padding-left:5px;padding-right:5px}}

@@ -706,7 +706,8 @@
     opts.push({ t: 'shards', label: sp + ' shards', pos, n: sp });
     const roll = M.rand();
     // traits are Hall of Fame only now (franchise achievements), so picks never offer one
-    if (roll < 0.45) { const b = M.pick(D.BOOSTS); opts.push({ t: 'boost', label: b.n, k: b.k, n: 1 + (tier >= 3 ? 1 : 0) }); }
+    if (roll < 0.15) opts.push({ t: 'scout', label: 'Rescout token', n: 1 + (tier >= 3 ? 1 : 0) });
+    else if (roll < 0.5) { const b = M.pick(D.BOOSTS); opts.push({ t: 'boost', label: b.n, k: b.k, n: 1 + (tier >= 3 ? 1 : 0) }); }
     else { const pk = Math.round(900 * payout() * (1 + tier)); opts.push({ t: 'pucks', label: fmt(pk) + ' pucks', n: pk }); }
     return { kind: 'pick', title, sub: 'Pick one. The other two are gone.', options: opts, tier, rerolled: false };
   }
@@ -729,6 +730,7 @@
       if (o.t === 'gear') { st.gear.push(o.g); toast('Added ' + o.label + ' to the locker', 'win'); }
       else if (o.t === 'shards') st.shards[o.pos] += o.n;
       else if (o.t === 'xf') st.xfs.push(o.xf);
+      else if (o.t === 'scout') st.faTokens = (st.faTokens || 0) + o.n;
       else if (o.t === 'boost') st.boosts[o.k] = (st.boosts[o.k] || 0) + o.n;
       else if (o.t === 'pucks') st.pucks += o.n;
     }
@@ -1019,6 +1021,54 @@
     if (!(opt && opt.quiet)) toast('Traded ' + ps.map(p => p.name).join(', ') + ' for a ' + ord(t.round) + '-round pick. Their gear and traits went to your locker.', 'promo');
     save(); emit('roster'); return true;
   }
+  // ---------------------------------------------------------------- trade-in
+  // Pick any bench players and one kind of reward. Each player is worth points by rarity, scaled by how good he is
+  // for this division; the reward is bought with those points. Picks are priced by their real draft odds here,
+  // so a trade never hands back more than it takes.
+  const RV = [1, 2.5, 6, 15, 40];
+  function tradeValue(p) { return RV[D.RIDX[p.rarity]] * (0.6 + 0.4 * M.clamp(M.trainedOverall(p) / Math.max(10, div().hi), 0.3, 1.6)); }
+  function pickValue(round) { const o = pickOdds(round); return o.reduce((s, x, i) => s + x / 100 * RV[i], 0); }
+  function tradeQuote(ids, kind) {
+    const ps = ids.map(byId).filter(p => p && tradeable(p) && bench().indexOf(p) >= 0);
+    const P = ps.reduce((s, p) => s + tradeValue(p), 0), out = { P, n: ps.length, kind, items: [], text: '' };
+    if (!ps.length) return out;
+    if (kind === 'picks') {
+      let left = P * 0.85;
+      for (let k = 0; k < 6; k++) {
+        let r = 0; for (let x = 1; x <= 7; x++) if (pickValue(x) <= left) { r = x; break; }
+        if (!r) break;
+        out.items.push(r); left -= pickValue(r);
+      }
+      const c = {}; out.items.forEach(r => { c[r] = (c[r] || 0) + 1; });
+      out.text = Object.keys(c).sort().map(r => (c[r] > 1 ? c[r] + ' ' : 'a ') + ord(+r) + '-round pick' + (c[r] > 1 ? 's' : '')).join(', ');
+    } else if (kind === 'gear') {
+      const v = P * 0.8; let ri = 0; for (let i = 4; i >= 0; i--) if (RV[i] <= v) { ri = i; break; }
+      const n = Math.max(1, Math.min(5, Math.floor(v / RV[ri])));
+      out.items = Array(n).fill(D.RARITY[ri].k);
+      out.text = n + ' ' + D.RARITY[ri].n.toLowerCase() + ' gear piece' + (n > 1 ? 's' : '');
+    } else if (kind === 'shards') {
+      const n = Math.max(1, Math.round(P * 9 * (1 + D.DIVISIONS.findIndex(x => x.d === st.div) * 0.15))), w = { F: 0, D: 0, G: 0 };
+      ps.forEach(p => { w[poolOf(p)] += tradeValue(p); });
+      out.items = ['F', 'D', 'G'].map(k => [k, Math.round(n * w[k] / P)]).filter(x => x[1] > 0);
+      out.text = out.items.map(([k, x]) => x + ' ' + k + ' shards').join(', ');
+    } else {
+      const n = Math.round(P * (passiveRate() * 60 * 2 + 400 * payout()));
+      out.items = [n]; out.text = fmt(n) + ' pucks';
+    }
+    return out;
+  }
+  function tradeIn(ids, kind) {
+    const q = tradeQuote(ids, kind); if (!q.n || !q.items.length) return null;
+    const ps = ids.map(byId).filter(p => p && tradeable(p) && bench().indexOf(p) >= 0);
+    ps.forEach(stripToLocker);
+    st.team.roster = st.team.roster.filter(p => ps.indexOf(p) < 0);
+    if (kind === 'picks') q.items.forEach(r => addPick(r));
+    else if (kind === 'gear') q.items.forEach(rk => st.gear.push(smartGear(rk)));
+    else if (kind === 'shards') q.items.forEach(([k, x]) => { st.shards[k] += x; });
+    else st.pucks += q.items[0];
+    toast('Traded ' + ps.length + ' player' + (ps.length > 1 ? 's' : '') + ' for ' + q.text + '. Their gear and traits went to your locker.', 'promo');
+    save(); emit('roster'); return q;
+  }
   function combinePicks(round) {
     if (round <= 1 || !st.picks || (st.picks[round] || 0) < 2) return false;
     st.picks[round] -= 2; addPick(round - 1);
@@ -1043,6 +1093,14 @@
       st.fa.push({ p, cost: Math.round((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over)), sold: false });
     }
     st.faAt = Date.now();
+  }
+  // free agent rescout: one ad refresh every 30 minutes, or a rescout token (earned from rewards) any time
+  const FA_AD_MS = 30 * 60e3;
+  function faRescoutLeft() { return Math.max(0, FA_AD_MS - (Date.now() - (st.faAdAt || 0))); }
+  function faRescout(how) {
+    if (how === 'token') { if (!(st.faTokens > 0)) return false; st.faTokens--; }
+    else { if (faRescoutLeft() > 0) return false; st.faAdAt = Date.now(); }
+    refreshAgents(true); toast('New free agents are in.', 'sign'); save(); return true;
   }
   function signAgent(i) {
     const a = st.fa && st.fa[i];
@@ -1283,7 +1341,7 @@
   const TAP_GOALS = [{ n: 200, s: 12 }, { n: 800, s: 30 }, { n: 2000, s: 40, pick: 5 }];
   function tapDay() { const d = new Date().toDateString(); if (!st.tapDay || st.tapDay.d !== d) st.tapDay = { d, n: 0, got: 0 }; return st.tapDay; }
   // after the daily goals, every 500 more taps drops something: gear, a late pick, pucks or shards, in turn
-  const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pick', 'shards'];   // no pucks: tapping already pays pucks
+  const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pick', 'shards', 'scout'];   // no pucks: tapping already pays pucks
   function countTap(n) {
     if (!st) return;
     const t = tapDay();
@@ -1309,6 +1367,7 @@
     if (kind === 'gear') { const i = D.DIVISIONS.findIndex(x => x.d === st.div); const g = smartGear(D.RARITY[Math.min(4, M.weightedIndex(DROP_W[i]))].k); st.gear.push(g); msg = M.gearName(g); }
     else if (kind === 'pucks') { const pk = Math.round(clickValue() * 150); st.pucks += pk; msg = fmt(pk) + ' pucks'; }
     else if (kind === 'pick') { const r = M.rand() < 0.5 ? 6 : 7; addPick(r); msg = 'a ' + ord(r) + '-round pick'; }
+    else if (kind === 'scout') { st.faTokens = (st.faTokens || 0) + 1; msg = 'a free agent rescout token'; }
     else { const s = 6 + D.DIVISIONS.findIndex(x => x.d === st.div) * 2; st.shards.F += s; st.shards.D += Math.round(s / 2); msg = s + ' F and ' + Math.round(s / 2) + ' D shards'; }
     toast('Practice bonus: ' + msg, 'promo');
     save(); emit('roster');
@@ -1501,8 +1560,8 @@
     upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, BREAK_MAX, shardPrice, buyShards,
     teamOvr, clickValue, passiveRate, tickPassive, activeBoosts, buyBoost, activateBoost, boostCost,
     fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
-    AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks,
-    refreshAgents, signAgent, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
+    AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks, tradeValue, tradeQuote, tradeIn, pickValue,
+    refreshAgents, signAgent, faRescout, faRescoutLeft, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
     facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, keepLimit, FACH, fachValue, fachNeed, offerFach, takeFach, setAutoScrap, setAutoUp,
     SLOTS, curSlot, slotInfo, useSlot, deleteSlot, bringBack,
     byId, save, load, wipe, catchUp, toast, fmt, findGear, freeNumber, checkGold, rollGearDrop, ord

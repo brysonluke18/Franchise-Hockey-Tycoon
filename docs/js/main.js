@@ -168,6 +168,17 @@
     let x;
     if ((x = el('[data-fuse]'))) { if (ST.fuse(x.dataset.fuse)) UI.render(); return; }
     if ((x = el('[data-trade]'))) { UI.tradeSheet(+x.dataset.trade); return; }
+    if ((x = el('[data-farescout]'))) {
+      if (x.dataset.farescout === 'token') { if (ST.faRescout('token')) UI.render(); }
+      else UI.adBreak(3, () => { ST.faRescout('ad'); UI.closeModal(); UI.render(); });
+      return;
+    }
+    if ((x = el('[data-cedit]'))) { UI.coachEdit(x.dataset.cedit, x.dataset.val); return; }
+    if ((x = el('[data-tin]'))) { UI.tinToggle(x.dataset.tin); return; }
+    if ((x = el('[data-tinall]'))) { UI.tinAll(x.dataset.tinall); return; }
+    if ((x = el('[data-tinclear]'))) { UI.tinClear(); return; }
+    if ((x = el('[data-tinkind]'))) { UI.tinKindSet(x.dataset.tinkind); return; }
+    if ((x = el('[data-dotin]'))) { UI.tinDo(); UI.header(); return; }
     if ((x = el('[data-batch]'))) { ST.batchTrade(+x.dataset.batch); UI.render(); UI.header(); return; }
     if ((x = el('[data-lock]'))) { ST.toggleLock(x.dataset.lock); UI.playerSheet(x.dataset.lock); UI.render(); return; }
     if ((x = el('[data-fach]'))) { if (ST.offerFach(x.dataset.fach)) UI.fachSheet(); return; }
@@ -239,6 +250,9 @@
         case 'hint': st.hintClosed = true; ST.save(); UI.render(); return;
         case 'kit': UI.kitDraft = null; UI.kitSheet(); return;
         case 'saves': UI.savesSheet(); return;
+        case 'tradein': UI.tradeInSheet(); return;
+        case 'coachedit': UI.coachEditSheet(); return;
+        case 'coachsave': UI.coachSave(); return;
         case 'chemnotes': st.showChem = !st.showChem; ST.save(); UI.render(); return;
         case 'kitclose': UI.kitDraft = null; UI.closeModal(); return;
         case 'savekit': {

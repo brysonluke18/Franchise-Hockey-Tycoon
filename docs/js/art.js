@@ -337,25 +337,43 @@
   }
 
   // coach: suit and tie in team colours, bare head
-  function coachPortrait(coach, team, size) {
-    const s = size || 56;
+  // the head coach: suit and tie in team colours; skin, hair, facial hair and glasses are editable (coach.look)
+  const COACH_HAIR = ['side', 'slick', 'buzz', 'bald'];
+  const COACH_HAIR_N = { side: 'Side part', slick: 'Slicked back', buzz: 'Buzz', bald: 'Bald' };
+  const COACH_FACE = ['none', 'mustache', 'goatee', 'beard'];
+  const COACH_FACE_N = { none: 'Clean', mustache: 'Mustache', goatee: 'Goatee', beard: 'Beard' };
+  const COACH_HAIRC = ['#1b1410', '#3a2516', '#8c5a26', '#c99b52', '#7d7d7d', '#b9b9b9', '#e8e8e8'];
+  function coachLook(coach) {
     const r = rng(hash(coach.id || coach.name));
-    const skin = SKIN[Math.floor(r() * 4)], hair = r() < 0.5 ? '#9a9a9a' : HAIR[Math.floor(r() * 4)];
+    const base = { skin: Math.floor(r() * 4), hc: r() < 0.5 ? 5 : Math.floor(r() * 3), hair: 'side', face: 'none', glasses: false };
+    return Object.assign(base, coach.look || {});
+  }
+  function coachPortrait(coach, team, size) {
+    const s = size || 56, lk = coachLook(coach);
+    const skin = SKIN[lk.skin] || SKIN[0], hair = COACH_HAIRC[lk.hc] || COACH_HAIRC[0], sk2 = shade(skin, 0.82);
+    let hairSvg = '';
+    if (lk.hair === 'side') hairSvg = '<path d="M18.8 27c0-10 6-13.5 13.2-13.5S45.2 17 45.2 27c-2-5-6-7.5-13.2-7.5-3 0-5 .6-6.6 1.6-1.4 1.6-3.6 3.6-6.6 5.9z" fill="' + hair + '"/>';
+    if (lk.hair === 'slick') hairSvg = '<path d="M18.8 28c0-11 6-14.5 13.2-14.5S45.2 17 45.2 28c-1.6-5.6-5.4-8.6-13.2-8.6S20.4 22.4 18.8 28z" fill="' + hair + '"/><path d="M23 18.5c5-2 13-2 18 0" stroke="rgba(255,255,255,.25)" stroke-width="1" fill="none"/>';
+    if (lk.hair === 'buzz') hairSvg = '<path d="M19.3 26c.6-8.4 6.2-11.8 12.7-11.8S44.1 17.6 44.7 26c-2.6-3.8-6.6-5.3-12.7-5.3S21.9 22.2 19.3 26z" fill="' + hair + '" opacity=".75"/>';
+    if (lk.hair === 'bald') hairSvg = '<path d="M18.9 30c0-3 .6-5 1.6-6.4l1.2 6.4zM45.1 30c0-3-.6-5-1.6-6.4l-1.2 6.4z" fill="' + hair + '"/>';
+    let face = '';
+    if (lk.face === 'mustache') face = '<path d="M27 38.6c2.2-1.6 3.6-1.6 5-.6 1.4-1 2.8-1 5 .6-1.8.6-3.4.6-5-.2-1.6.8-3.2.8-5 .2z" fill="' + hair + '"/>';
+    if (lk.face === 'goatee') face = '<path d="M28.6 38.6c1.2-.8 2.3-1 3.4-.4 1.1-.6 2.2-.4 3.4.4M29.5 42.4c.6 2.8 1.6 4 2.5 4s1.9-1.2 2.5-4z" fill="' + hair + '" stroke="' + hair + '" stroke-width="1"/>';
+    if (lk.face === 'beard') face = '<path d="M19.2 31c.4 9 5.4 14.6 12.8 14.6S44.4 40 44.8 31c-1.6 4.6-3.4 6.4-6 6.4-2.2 0-3.6-1-6.8-1s-4.6 1-6.8 1c-2.6 0-4.4-1.8-6-6.4z" fill="' + hair + '"/>';
+    const glasses = lk.glasses ? '<g fill="rgba(200,230,255,.18)" stroke="#1b1b1b" stroke-width="1.3"><rect x="22.6" y="28.2" width="8.6" height="6" rx="2.2"/><rect x="32.8" y="28.2" width="8.6" height="6" rx="2.2"/></g><path d="M31.2 30.6h1.6" stroke="#1b1b1b" stroke-width="1.2"/>' : '';
     return '<svg class="pt" viewBox="0 0 64 64" width="' + s + '" height="' + s + '" aria-hidden="true">' +
       '<circle cx="32" cy="32" r="31" fill="#3a4a60" opacity=".35"/><g clip-path="url(#ptc)">' +
       '<path d="M6 66C8 51 19 46 32 46s24 5 26 20z" fill="#1d2633"/>' +
       '<path d="M26 46l6 9 6-9z" fill="#f2f4f7"/><path d="M30.5 48h3l-.6 12h-1.8z" fill="' + team.c1 + '"/>' +
-      '<rect x="27" y="39" width="10" height="8" fill="' + shade(skin, 0.82) + '"/>' +
-      '<ellipse cx="18.8" cy="32" rx="2.6" ry="3.8" fill="' + shade(skin, 0.82) + '"/><ellipse cx="45.2" cy="32" rx="2.6" ry="3.8" fill="' + shade(skin, 0.82) + '"/>' +
-      '<ellipse cx="32" cy="30.5" rx="13.2" ry="15" fill="' + skin + '"/>' +
-      '<path d="M18.8 27c0-10 6-13.5 13.2-13.5S45.2 17 45.2 27c-2-5-6-7.5-13.2-7.5S20.8 22 18.8 27z" fill="' + hair + '"/>' +
+      '<rect x="27" y="39" width="10" height="8" fill="' + sk2 + '"/>' +
+      '<ellipse cx="18.8" cy="32" rx="2.6" ry="3.8" fill="' + sk2 + '"/><ellipse cx="45.2" cy="32" rx="2.6" ry="3.8" fill="' + sk2 + '"/>' +
+      '<ellipse cx="32" cy="30.5" rx="13.2" ry="15" fill="' + skin + '"/>' + hairSvg +
       '<path d="M24.5 27.5l5-1M39.5 27.5l-5-1" stroke="' + hair + '" stroke-width="1.9" stroke-linecap="round"/>' +
       '<circle cx="27" cy="31" r="1.5" fill="#1b1b1b"/><circle cx="37" cy="31" r="1.5" fill="#1b1b1b"/>' +
       '<path d="M32 32l-1.6 5h3" fill="none" stroke="' + shade(skin, 0.75) + '" stroke-width="1.3" stroke-linecap="round"/>' +
-      '<path d="M28.3 40.5h7.4" stroke="#6d3b30" stroke-width="1.5" stroke-linecap="round"/>' +
-      '<path d="M22 24.5c2-1.2 4-1.4 6-.8M42 24.5c-2-1.2-4-1.4-6-.8" stroke="rgba(0,0,0,.15)" stroke-width=".8" fill="none"/></g>' +
-      '<circle cx="32" cy="32" r="30.6" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2.6"/></svg>';
+      face + (lk.face === 'beard' || lk.face === 'mustache' ? '' : '<path d="M28.3 40.5h7.4" stroke="#6d3b30" stroke-width="1.5" stroke-linecap="round"/>') + glasses +
+      '</g><circle cx="32" cy="32" r="30.6" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2.6"/></svg>';
   }
 
-  G.ART = { hash, icon, gearIcon, gearColor, crestSVG, logoSVG, jerseySVG, portrait, lookOf, SKIN, HAIR, HAIR_STYLES, HAIR_N, BEARDS, BEARD_N, MASKS, MASK_N, coachPortrait, defs, teamBadge, teamColor, rarityColor, flag };
+  G.ART = { hash, icon, gearIcon, gearColor, crestSVG, logoSVG, jerseySVG, portrait, lookOf, SKIN, HAIR, HAIR_STYLES, HAIR_N, BEARDS, BEARD_N, MASKS, MASK_N, coachPortrait, coachLook, COACH_HAIR, COACH_HAIR_N, COACH_FACE, COACH_FACE_N, COACH_HAIRC, defs, teamBadge, teamColor, rarityColor, flag };
 })(window.BK = window.BK || {});

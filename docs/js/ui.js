@@ -60,7 +60,8 @@
 
     h += sh('Lineup', '<span class="sec-btns"><button class="btn sm chemtg' + (st.showChem ? ' primary' : '') + '" data-act="chemnotes">Chem details</button><button class="btn sm' + (editMode ? ' primary' : '') + '" data-act="editlines">' + ic(editMode ? 'check' : 'swap', 15) + (editMode ? ' Done' : ' Edit lines') + '</button></span>');
     h += '<div class="gearbar"><button class="btn sm' + (ST.alerts().gear ? ' alert' : '') + '" data-act="autoequip">' + ic('gear', 15) + ' Auto-equip gear</button>' +
-      '<label class="chk"><input type="checkbox" id="autoAll"' + (autoAll ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Re-fit equipped gear too</label></div>';
+      '<label class="chk"><input type="checkbox" id="autoAll"' + (autoAll ? ' checked' : '') + '><span>' + ic('check', 12) + '</span>Re-fit equipped gear too</label></div>' +
+      '<div class="mk-key"><span><i class="mk g">' + ic('gear', 9) + '</i>better gear</span><span><i class="mk t">' + ic('up', 9) + '</i>can train</span><span><i class="mk r">' + ic('star', 9) + '</i>can promote</span></div>';
     if (editMode) {
       const sp = selSwap && by[selSwap];
       h += '<div class="editbar">' + ic('swap', 18) + '<span>' + (sp ? 'Moving <b>' + esc(last(sp)) + '</b>. Tap a highlighted spot to swap.' : 'Tap a player, then tap a highlighted spot. Players only play their own position.') + '</span></div>';
@@ -169,7 +170,7 @@
   // daily practice goals under the clicker
   function goalHTML() {
     const t = ST.tapDay(), G = ST.TAP_GOALS, next = G[t.got], prev = t.got ? G[t.got - 1].n : 0;
-    if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, a pick or shards</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
+    if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, a pick, shards or a rescout token</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
     const pct = Math.min(100, 100 * (t.n - prev) / (next.n - prev));
     return '<div class="cg-h"><b>Practice goal ' + (t.got + 1) + '/' + G.length + ': ' + fmt(t.n) + ' / ' + fmt(next.n) + ' taps</b><i>+' + next.s + ' shards' + (next.pick ? ' + a ' + ST.ord(next.pick) + '-round pick' : '') + '</i></div>' +
       '<div class="cg-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
@@ -408,15 +409,18 @@
         '<span class="fac-bar">' + Array.from({ length: fmax }, (_, i) => '<i class="' + (i < lv ? 'on' : '') + '"></i>').join('') + '</span></span>' +
         '<button class="buy" data-fac="' + f.k + '"' + (top || st.pucks < cost ? ' disabled' : '') + '>' + (top ? 'Max' : fmt(cost)) + '</button></div>';
     }).join('') + '</section><div class="note">Each promotion raises the facility cap by 2. Costs climb steeply, so pick what matters to you.</div>';
-    h += sh(ic('swap', 18) + ' Trade desk', '<span class="sec-note">Bench players for draft picks</span>');
-    h += '<section class="panel flush trades">' + ST.TRADES.map((t, i) => {
+    const tradeN = bench.filter(ST.tradeable).length;
+    h += sh(ic('swap', 18) + ' Trade desk', '<span class="sec-note">' + tradeN + ' tradeable on the bench</span>');
+    h += '<section class="panel tradein"><div><b>Trade in players</b><i>Pick any bench players, then choose picks, gear, shards or pucks. Better and rarer players are worth more.</i></div>' +
+      '<button class="btn primary sm" data-act="tradein"' + (tradeN ? '' : ' disabled') + '>Choose players</button></section>';
+    h += '<section class="panel flush trades">' + ST.TRADES.map((t, i) => { if (!t.legend) return '';
       const all = bench.filter(p => p.rarity === t.r), have = all.filter(ST.tradeable).length, rc = A.rarityColor(t.r);
       const lockN = all.length - have;
       return '<div class="tr"><span class="tr-in">' + Array.from({ length: t.n }, () => '<i style="background:' + rc + '"></i>').join('') + '</span>' +
         '<span class="tr-t"><b>' + t.n + ' ' + D.RARITY[D.RIDX[t.r]].n.toLowerCase() + ' player' + (t.n > 1 ? 's' : '') + '</b><i>' + have + ' tradeable on the bench' + (lockN ? ' · ' + lockN + ' locked' : '') + '</i></span>' +
         ic('chev', 14, 'dimc') + '<span class="tr-out"' + (t.legend ? ' style="color:' + rc + '"' : '') + '>' + (t.legend ? '1 Legend' : ST.ord(t.round)) + '</span>' +
         '<span class="tr-b"><button class="buy" data-trade="' + i + '"' + (have >= t.n ? '' : ' disabled') + '>Trade</button>' + (!t.legend && have >= t.n * 2 ? '<button class="buy" data-batch="' + i + '">All ×' + Math.floor(have / t.n) + '</button>' : '') + '</span></div>';
-    }).join('') + '</section><div class="note">Fair rates: 1 uncommon = a 6th, 1 rare = a 4th, 1 epic = a 2nd, and two picks of a round combine into one a round higher. Three Legendaries buy one Legendary of the country and position you pick. Only bench players can be traded; lock a player on his card to keep him off the desk. Gear and traits go back to your locker.</div>';
+    }).join('') + '</section><div class="note">Three Legendaries buy one Legendary of the country and position you pick. Only bench players can be traded; lock a player on his card to keep him off the desk. Gear and traits go back to your locker.</div>';
 
     h += sh(A.gearIcon('stick', 'currentColor', 18) + ' Spare gear: salvage and fuse', '<span class="sec-note">' + st.gear.length + ' spare pieces</span>');
     const as = st.autoScrap == null ? -1 : st.autoScrap;
@@ -466,6 +470,10 @@
         '<i>' + p.pos + ' · ' + esc(M.typeOf(p).n) + ' · ' + flag(p.nat, 14) + ' ' + nat.n + '</i></div>' +
         (a.sold ? '<span class="gc-sold">Signed</span>' : '<button class="buy" data-fa="' + i + '"' + (st.pucks < a.cost ? ' disabled' : '') + '>' + ic('puck', 12) + fmt(a.cost) + '</button>') + '</div>';
     }).join('') + '</div>';
+    // rescout: a free refresh (watch an ad) every 30 minutes, or spend a rescout token any time
+    const rl = ST.faRescoutLeft(), tk = st.faTokens || 0;
+    h += '<div class="fa-rs"><span>' + ic('swap', 14) + ' New free agents: ' + (rl ? 'ad rescout in ' + Math.ceil(rl / 60e3) + ' min' : 'ad rescout ready') + (tk ? ' · ' + tk + ' token' + (tk > 1 ? 's' : '') : '') + '</span>' +
+      '<button class="btn sm" data-farescout="ad"' + (rl ? ' disabled' : '') + '>Watch ad</button>' + (tk ? '<button class="btn sm primary" data-farescout="token">Use token</button>' : '') + '</div>';
 
     const cap = ST.maxRarity();
     h += sh(ic('token', 18) + ' Draft picks', ST.pickCount() > 1 ? '<button class="btn sm primary" data-act="draftall">' + ic('token', 14) + ' Draft all ' + ST.pickCount() + '</button>' : '<span class="sec-note">1st-round Legendary chance: ' + ST.pickOdds(1)[4] + '%</span>');
@@ -770,6 +778,7 @@
       if (o.t === 'gear') { col = A.rarityColor(o.rarity); const slot = D.GEAR_SLOTS[o.g.kind].find(s => s.k === o.g.slot); art = A.gearIcon(o.g.slot, col, 44); kind = D.RARITY[D.RIDX[o.rarity]].n + (o.g.kind === 'goalie' ? ' · G' : ''); line = slot.n + '<small>+' + o.g.p + ' ' + D.ATTR_LABEL[slot.p] + '</small>'; }
       else if (o.t === 'shards') { col = POOLC[o.pos]; art = ic('shard', 44); kind = 'Shards'; line = o.n + ' ' + POOLN[o.pos].toLowerCase() + '<small>for promotions</small>'; }
       else if (o.t === 'xf') { col = A.rarityColor(o.rarity); art = ic('bolt', 44); kind = 'Trait'; const x = D.XFACTORS.find(y => y.k === o.xf); line = x.n + '<small>' + esc(x.d) + '</small>'; }
+      else if (o.t === 'scout') { col = '#5cc8ff'; art = ic('swap', 44); kind = 'Free agents'; line = 'Rescout token' + (o.n > 1 ? ' ×' + o.n : '') + '<small>a fresh set of free agents, any time</small>'; }
       else if (o.t === 'boost') { col = '#ffc54d'; art = ic('bolt', 44); kind = 'Boost'; const b = D.BOOSTS.find(y => y.k === o.k); line = b.n + (o.n > 1 ? ' ×' + o.n : '') + '<small>' + esc(b.d) + '</small>'; }
       else { col = '#d6dde6'; art = ic('puck', 44); kind = 'Pucks'; line = fmt(o.n) + '<small>straight into upgrades</small>'; }
       return '<button class="pick" data-take="' + i + '" style="--rc:' + col + '"><span class="pick-art">' + art + '</span><span class="pick-k">' + kind + '</span><b>' + line + '</b></button>';
@@ -816,11 +825,45 @@
     openModal(h);
   }
 
+  // edit the head coach: name, country and look
+  let coachDraft = null;
+  function coachEditSheet(keep) {
+    const st = ST.get(), c = st.coach;
+    if (!keep || !coachDraft) coachDraft = Object.assign({ name: c.name, nat: c.nat }, A.coachLook(c));
+    else { const n = $('#cName'); if (n) coachDraft.name = n.value; }
+    const d = coachDraft, prev = Object.assign({}, c, { name: d.name, nat: d.nat, look: { skin: d.skin, hc: d.hc, hair: d.hair, face: d.face, glasses: d.glasses } });
+    const chips = (field, vals, names) => '<div class="chips">' + vals.map(v => '<button class="chip' + (d[field] === v ? ' on' : '') + '" data-cedit="' + field + '" data-val="' + v + '">' + names[v] + '</button>').join('') + '</div>';
+    const sw = (field, cols) => '<div class="lk-sw">' + cols.map((col, i) => '<button class="lk-c' + (d[field] === i ? ' on' : '') + '" style="background:' + col + '" data-cedit="' + field + '" data-val="' + i + '" aria-label="Colour ' + (i + 1) + '"></button>').join('') + '</div>';
+    let h = sheetHead('Head coach', 'Free, any time.', 'data-act="coach"');
+    h += '<div class="coach-hero">' + A.coachPortrait(prev, st.team, 96) + '<div><h2 class="sheet-t">' + esc(d.name) + '</h2><div class="sub">' + flag(d.nat, 16) + ' ' + M.nationOf({ nat: d.nat }).n + '</div></div></div>';
+    h += '<label class="fld"><span>Name</span><input id="cName" class="txt" maxlength="24" value="' + esc(d.name) + '"></label>';
+    h += '<div class="fld"><span>Country</span><div class="favrow"><span>' + flag(d.nat, 24) + '</span><select id="cNat" class="txt">' + D.NATIONS.slice().sort((a, b) => a.n.localeCompare(b.n)).map(n => '<option value="' + n.c + '"' + (n.c === d.nat ? ' selected' : '') + '>' + n.n + '</option>').join('') + '</select></div></div>';
+    h += '<div class="sec-h in"><h2>Skin</h2></div>' + sw('skin', A.SKIN);
+    h += '<div class="sec-h in"><h2>Hair</h2></div>' + chips('hair', A.COACH_HAIR, A.COACH_HAIR_N) + sw('hc', A.COACH_HAIRC);
+    h += '<div class="sec-h in"><h2>Face</h2></div>' + chips('face', A.COACH_FACE, A.COACH_FACE_N) +
+      '<div class="chips"><button class="chip' + (d.glasses ? ' on' : '') + '" data-cedit="glasses" data-val="' + (d.glasses ? '0' : '1') + '">Glasses</button></div>';
+    h += '<button class="btn primary big" data-act="coachsave" style="margin-top:14px">Save coach</button>';
+    const sc = keep ? $('#sheet').scrollTop : 0;
+    openModal(h); if (keep) $('#sheet').scrollTop = sc;
+    const ns = $('#cNat'); if (ns) ns.addEventListener('change', () => { coachDraft.name = $('#cName').value; coachDraft.nat = ns.value; coachEditSheet(true); });
+  }
+  function coachEdit(field, val) {
+    if (!coachDraft) return;
+    coachDraft[field] = field === 'skin' || field === 'hc' ? +val : field === 'glasses' ? val === '1' : val;
+    coachEditSheet(true);
+  }
+  function coachSave() {
+    const st = ST.get(), c = st.coach, d = coachDraft; if (!d) return;
+    const n = $('#cName'); if (n) d.name = n.value;
+    c.name = (d.name || '').trim().slice(0, 24) || c.name; c.nat = d.nat;
+    c.look = { skin: d.skin, hc: d.hc, hair: d.hair, face: d.face, glasses: d.glasses };
+    coachDraft = null; ST.save(); coachSheet(); render();
+  }
   function coachSheet() {
     const st = ST.get(), c = st.coach;
     const styles = [['bal', 'Balanced', 'No tilt'], ['off', 'Run and gun', 'Offense +4%, defense −3%'], ['def', 'Trap', 'Defense +4%, offense −3%']];
     let h = '<div class="coach-hero">' + A.coachPortrait(c, st.team, 84) + '<div><div class="eyebrow">Head coach</div><h2 class="sheet-t">' + esc(c.name) + '</h2>' +
-      '<div class="sub">' + flag(c.nat, 16) + ' ' + M.nationOf({ nat: c.nat }).n + '</div></div><button class="xbtn" data-act="close" aria-label="Close">' + ic('close', 16) + '</button></div>';
+      '<div class="sub">' + flag(c.nat, 16) + ' ' + M.nationOf({ nat: c.nat }).n + '</div><button class="btn sm" data-act="coachedit" style="margin-top:8px">' + ic('edit', 14) + ' Name, look &amp; country</button></div><button class="xbtn" data-act="close" aria-label="Close">' + ic('close', 16) + '</button></div>';
     h += '<div class="sec-h in"><h2>System</h2><span class="sec-note">Applies to every game</span></div><div class="styles">' + styles.map(([k, n, d]) =>
       '<button class="style' + (c.style === k ? ' on' : '') + '" data-style="' + k + '"><b>' + n + '</b><i>' + d + '</i></button>').join('') + '</div>' +
       '<div class="note">An offense far ahead of its defense leaks goals, and the reverse cannot score. Trap helps a lopsided roster; Run and gun suits a defense that can cover.</div>';
@@ -916,6 +959,35 @@
     }, 100);
   }
   let tradeSel = [], tradeOpt = { nat: null, pos: 'C' };
+  // trade-in: choose any bench players and one kind of reward; the quote updates as you pick
+  let tinSel = [], tinKind = 'picks';
+  function tradeInSheet(keep) {
+    if (!keep) { tinSel = []; }
+    const st = ST.get(), list = ST.bench().slice().sort((a, b) => D.RIDX[a.rarity] - D.RIDX[b.rarity] || M.overall(a) - M.overall(b));
+    tinSel = tinSel.filter(id => list.some(p => p.id === id));
+    let h = sheetHead('Trade in players', 'Pick bench players, then the reward. Rarer and better players are worth more.', 'data-act="close"');
+    h += '<div class="tauto">' + D.RARITY.slice(0, 4).map(r => list.some(p => p.rarity === r.k && ST.tradeable(p)) ? '<button class="btn sm" data-tinall="' + r.k + '">All ' + r.n.toLowerCase() + '</button>' : '').join('') +
+      (tinSel.length ? '<button class="btn sm ghost" data-tinclear="1">Clear</button>' : '') + '</div>';
+    h += '<div class="tsel">' + list.map(p => {
+      const on = tinSel.indexOf(p.id) >= 0, ok = ST.tradeable(p);
+      return '<button class="tsel-r' + (on ? ' on' : '') + (ok ? '' : ' locked') + '" data-tin="' + p.id + '"' + (ok ? '' : ' disabled') + '>' + A.portrait(p, st.team, 40, rcol(p)) +
+        '<span class="tsel-t"><b>' + esc(p.name) + '</b><i>' + (ok ? '<span style="color:' + rcol(p) + '">' + rname(p) + '</span> · ' + p.pos + ' · ' + M.typeOf(p).ab + ' · ' + M.overall(p) + ' ovr · worth ' + ST.tradeValue(p).toFixed(1) : 'Locked · unlock him on his card to trade') + '</i></span>' +
+        '<span class="tsel-c">' + (on ? ic('check', 16) : '') + '</span></button>';
+    }).join('') + '</div>';
+    h += '<div class="sec-h in"><h2>Reward</h2></div><div class="chips">' + [['picks', 'Draft picks'], ['gear', 'Gear pack'], ['shards', 'Shards'], ['pucks', 'Pucks']].map(([k, n]) =>
+      '<button class="chip' + (tinKind === k ? ' on' : '') + '" data-tinkind="' + k + '">' + n + '</button>').join('') + '</div>';
+    const q = ST.tradeQuote(tinSel, tinKind);
+    h += '<div class="tin-q">' + (q.n ? (q.text ? 'You get <b>' + esc(q.text) + '</b> for ' + q.n + ' player' + (q.n > 1 ? 's' : '') + ' (worth ' + q.P.toFixed(1) + ')' : 'Worth ' + q.P.toFixed(1) + ': not enough for a pick in this division. Add players or choose another reward.') : 'Select players to see what they are worth.') + '</div>';
+    h += '<button class="btn primary" data-dotin="1"' + (q.n && q.text ? '' : ' disabled') + '>Trade ' + q.n + ' player' + (q.n === 1 ? '' : 's') + '</button>';
+    h += '<div class="note">Worth: 1 per common, 2.5 uncommon, 6 rare, 15 epic, scaled by Overall against this division. Picks are priced by the real draft odds in your division, so a trade never hands back more than it takes. Gear and traits go back to your locker.</div>';
+    const sc = keep ? $('#sheet').scrollTop : 0;
+    openModal(h); if (keep) $('#sheet').scrollTop = sc;
+  }
+  function tinToggle(id) { const i = tinSel.indexOf(id); if (i >= 0) tinSel.splice(i, 1); else tinSel.push(id); tradeInSheet(true); }
+  function tinAll(rk) { ST.bench().filter(p => p.rarity === rk && ST.tradeable(p)).forEach(p => { if (tinSel.indexOf(p.id) < 0) tinSel.push(p.id); }); tradeInSheet(true); }
+  function tinClear() { tinSel = []; tradeInSheet(true); }
+  function tinKindSet(k) { tinKind = k; tradeInSheet(true); }
+  function tinDo() { const q = ST.tradeIn(tinSel, tinKind); if (!q) return; tinSel = []; closeModal(); render(); }
   function tradeSheet(ti, keep) {
     if (!keep) { tradeSel = []; tradeOpt = { nat: ST.get().fav || 'CA', pos: 'C' }; }
     const t = ST.TRADES[ti], st = ST.get();
@@ -1161,9 +1233,17 @@
   }
   function pushFeed(f) { feed.unshift(f); if (feed.length > 60) feed.pop(); }
 
+  // anything that keeps you from tapping (a sheet, a reward screen, a toast, another tab, the drill, the app in the
+  // background) freezes the combo timer, checked ten times a second
+  setInterval(() => {
+    const blocked = document.hidden || tab !== 'train' || drillMode || modalOpen() || !!($('#toasts') && $('#toasts').children.length) || !$('#ckArena');
+    P.setPaused(blocked);
+  }, 100);
   G.UI = {
     render, setTab, header, toast, openModal, closeModal, playerSheet, gearPicker, xfPicker, pendingSheet, historySheet, coachSheet, tuneSheet, savesSheet, popHTML, placePop,
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
+    coachEditSheet, coachEdit, coachSave,
+    tradeInSheet, tinToggle, tinAll, tinClear, tinKindSet, tinDo,
     tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, holdState, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },
     get tab() { return tab; },
