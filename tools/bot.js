@@ -5,21 +5,28 @@
 //  trader: combines picks upward, rescouts weak picks, trades every spare
 //  facShare: max share of the bank to spend on a facility at once (0 = never)
 //  offlineHours: hours away between each pair of sessions (adds offline earnings, no taps)
+//  reward: always take this reward-pick type when offered ('pucks', 'gear', 'shards', 'boost', 'scout'), else the default order
+//  picks: 'draft' (use draft boards), 'hoard' (never draft), 'cycle' (draft, then trade the draftees back in for picks)
+//  tradeKind: what bench trade-ins are cashed for ('picks', 'gear', 'shards', 'pucks', or null = no trade-ins)
+//  fa: sign a free agent whenever one beats a starter at his position and is affordable
+//  boosts: activate owned boosts during sessions
 window.runBot = function (opts) {
   const B = window.BK, ST = B.ST, M = B.M, D = B.DATA, UI = B.UI;
-  opts = Object.assign({ seasons: 12, taps: 60, avgMult: 2.5, tapsPlayoff: 90, fav: 'CA', spend: 'spread', loyal: false, trader: false, facShare: 0.3, traits: true, offlineEvery: 0 }, opts || {});
+  opts = Object.assign({ picks: 'draft', tradeKind: 'picks', reward: null, fa: false, boosts: true, seasons: 12, taps: 60, avgMult: 2.5, tapsPlayoff: 90, fav: 'CA', spend: 'spread', loyal: false, trader: false, facShare: 0.3, traits: true, offlineEvery: 0 }, opts || {});
   UI.queueCard = () => {}; UI.maybeSheets = () => {}; UI.toast = () => {}; UI.render = () => {}; UI.header = () => {};
   ST.wipe();
   ST.newGame({ city: 'Bot', name: 'Bots', abbr: 'BOT', c1: '#c00', c2: '#fff', c3: '#000', pattern: 'yoke', crest: 'shield', fav: opts.fav });
   const st = ST.get();
   st.demo = false; ST.applySpeed();
   const T = D.TUNING, log = [], startIds = st.team.roster.map(p => p.id);
-  const tot = { tap: 0, passive: 0, offline: 0, up: 0, fac: 0, rescouts: 0, drafts: 0, draftDiff: 0, games: 0, gearScrap: 0, pkTaken: { shards: 0, gear: 0, xf: 0, boost: 0, pucks: 0 } };
+  const tot = { tap: 0, passive: 0, offline: 0, up: 0, fac: 0, rescouts: 0, drafts: 0, draftDiff: 0, games: 0, gearScrap: 0, pkTaken: { shards: 0, gear: 0, xf: 0, boost: 0, pucks: 0 }, fa: 0, faSpent: 0, tradeIns: 0, boostsUsed: 0 };
   let minutes = 0;
   const income = (sec, taps) => {
     const p = ST.passiveRate() * sec, t = ST.clickValue() * taps * opts.avgMult;
     for (let i = 0; i < taps; i++) ST.countTap();
     st.pucks += p + t; tot.passive += p; tot.tap += t; minutes += sec / 60; tot.games++;
+    // boosts run on simulated time here (the real clock barely moves during a bot run)
+    if (st.active && st.active.length && minutes - (tot.boostAt || 0) > (tot.boostMin || 5)) st.active = [];
     if (opts.offlineEvery && tot.games % opts.offlineEvery === 0) { const o = ST.passiveRate() * 0.25 * Math.min(ST.offlineHours(), opts.offlineHours || 4) * 3600; st.pucks += o; tot.offline += o; }
   };
   const lineupPlayers = () => ST.lineupIds().map(id => st.team.roster.find(p => p.id === id)).filter(Boolean);
@@ -48,7 +55,8 @@ window.runBot = function (opts) {
       const p = st.pending;
       if (p.kind === 'champion') ST.takeChampionPack(opts.fav);
       else if (p.kind === 'pick') {
-        const order = opts.traits ? ['xf', 'shards', 'gear', 'boost', 'pucks'] : ['shards', 'gear', 'xf', 'boost', 'pucks'];
+        const base = opts.traits ? ['xf', 'shards', 'gear', 'boost', 'pucks', 'scout'] : ['shards', 'gear', 'xf', 'boost', 'pucks', 'scout'];
+        const order = opts.reward ? [opts.reward].concat(base.filter(x => x !== opts.reward)) : base;
         let i = -1;
         for (const t of order) { i = p.options.findIndex(o => o.t === t); if (i >= 0) break; }
         const o = p.options[Math.max(0, i)]; if (o) tot.pkTaken[o.t] = (tot.pkTaken[o.t] || 0) + 1;
@@ -71,13 +79,17 @@ window.runBot = function (opts) {
     while (st.achClaim && st.achClaim.length) { ST.claimAch(0); handlePending(); }
     handlePending();
     if (opts.trader) for (let r = 7; r > 1; r--) while (st.picks && (st.picks[r] || 0) >= 3) ST.combinePicks(r);
-    for (let r = 1; r <= 7; r++) while (st.picks && st.picks[r]) {
-      const team = ST.teamOvr(), res = ST.draft(r);
+    if (opts.picks !== 'hoard') for (let r = 1; r <= 7; r++) while (st.picks && st.picks[r]) {
+      const team = ST.teamOvr(), res = ST.autoDraft ? ST.autoDraft(r) : ST.draft(r);
       if (!res) break;
-      let p = res.p;
-      if (opts.trader && M.overall(p) < team) { const r2 = ST.rescout(p.id, r); if (r2) { p = r2.p; tot.rescouts++; } }
-      tot.drafts++; tot.draftDiff += M.overall(p) - team;
+      tot.drafts++; tot.draftDiff += M.overall(res.p) - team;
     }
+    if (opts.fa && ST.refreshAgents) { ST.refreshAgents(); (st.fa || []).forEach((a, i) => {
+      if (a.sold || st.pucks < a.cost) return;
+      const worst = lineupPlayers().filter(q => q.pos === a.p.pos).reduce((m, q) => Math.min(m, M.overall(q)), 999);
+      if (M.overall(a.p) > worst) { const c = a.cost; if (ST.signAgent(i)) { tot.fa++; tot.faSpent += c; } }
+    }); }
+    if (opts.boosts && st.boosts && !(st.active || []).length) { const k = Object.keys(st.boosts).find(x => st.boosts[x] > 0); if (k && ST.activateBoost(k)) { tot.boostsUsed++; tot.boostAt = minutes; tot.boostMin = (D.BOOSTS.find(b => b.k === k) || {}).mins || 5; } }
     if (!opts.loyal) for (let pass = 0; pass < 3; pass++) ST.bench().forEach(b => {
       let worst = null;
       ST.lineupIds().forEach(id => { const q = st.team.roster.find(x => x.id === id); if (q && ST.canSwap(b.id, id) && M.overall(q) < M.overall(b) && (!worst || M.overall(q) < M.overall(worst))) worst = q; });
@@ -93,8 +105,20 @@ window.runBot = function (opts) {
       tot.fac += ST.facCost(f); ST.buildFac(f);
     }
     ST.salvageAll && ST.salvageAll('common');
-    if (!opts.loyal) ST.TRADES.forEach((t, ti) => { for (let k = 0; k < 6; k++) { const b = ST.bench().filter(p => p.rarity === t.r).sort((x, y) => M.overall(x) - M.overall(y)); if (b.length < t.n + (opts.trader ? 0 : 2)) break; ST.tradePlayers(ti, b.slice(0, t.n).map(p => p.id)); } });
+    // trade-ins: keep a few spares, cash the rest (cycle: cash everything for picks, every time)
+    if (!opts.loyal && opts.tradeKind && ST.tradeIn) {
+      const b = ST.bench().filter(p => ST.tradeable(p) && p.rarity !== 'legendary').sort((x, y) => M.overall(x) - M.overall(y));
+      const keep = opts.picks === 'cycle' ? 0 : 4, ids = b.slice(0, Math.max(0, b.length - keep)).map(p => p.id);
+      if (ids.length) { const q = ST.tradeIn(ids, opts.picks === 'cycle' ? 'picks' : opts.tradeKind); if (q) tot.tradeIns += ids.length; }
+    }
     spend();
+    // leftover pucks: tune equipped gear (cheapest first), keeping a cushion
+    if (opts.tune !== false && ST.levelGear) for (let g = 0; g < 200; g++) {
+      let best = null;
+      lineupPlayers().forEach(p => Object.keys(p.gear).forEach(k => { const x = p.gear[k]; if (x && (x.tune || 0) < ST.TUNE_MAX) { const c = ST.gearLevelCost(x); if (!best || c < best.c) best = { x, c }; } }));
+      if (!best || st.pucks < best.c * 1.5) break;
+      ST.levelGear(best.x.id); tot.tune = (tot.tune || 0) + best.c;
+    }
   }
   function capPct() { let c = 0, t = 0; lineupPlayers().forEach(p => Object.keys(p.a).forEach(k => { t++; if (p.a[k] >= M.attrCap(p, k)) c++; })); return Math.round(100 * c / t); }
   const s0 = st.season;
@@ -133,7 +157,7 @@ window.runBot = function (opts) {
       let usedH = 0, usedG = 0;
       for (let s = 0; s < opts.sessions; s++) {
         const h = Math.max(0, Math.min(gapH, ST.offlineHours() - usedH)); usedH += h;
-        const off = ST.passiveRate() * 0.5 * h * 3600;
+        const off = ST.passiveRate() * 0.25 * h * 3600;
         st.pucks += off; tot.offline += off;
         let banked = Math.max(0, Math.min(Math.floor(gapH * 3600 / T.gameIntervalSec), ST.offlineCap() - usedG)); usedG += banked;
         while (banked-- > 0 && st.phase === 'season') step(true);

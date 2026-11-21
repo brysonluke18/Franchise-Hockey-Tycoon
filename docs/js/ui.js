@@ -691,7 +691,8 @@
     D.GEAR_SLOTS[isG ? 'goalie' : 'skater'].forEach(s => {
       const g = p.gear[s.k], col = g ? A.gearColor(g) : 'var(--line2)';
       h += '<div class="slot' + (g ? '' : ' empty') + '" style="--rc:' + col + '"><button class="slot-main" data-gslot="' + s.k + '" data-pid="' + p.id + '">' + A.gearIcon(s.k, g ? col : 'var(--dim2)', 32) +
-        '<b>' + s.n + '</b><i>' + (g ? '+' + M.gearBonus(g) + ' ' + D.ATTR_LABEL[s.p] + (g.s ? ' · +' + g.s + ' ' + D.ATTR_LABEL[s.s] : '') : 'Empty · tap to equip') + '</i></button></div>';
+        '<b>' + s.n + '</b><i>' + (g ? '+' + M.gearBonus(g) + ' ' + D.ATTR_LABEL[s.p] + (g.s ? ' · +' + g.s + ' ' + D.ATTR_LABEL[s.s] : '') : 'Empty · tap to equip') + (g && g.tune ? ' · tuned +' + g.tune : '') + '</i></button>' +
+        (g ? '<button class="slot-tune" data-glevel="' + g.id + '"' + ((g.tune || 0) >= ST.TUNE_MAX || st.pucks < ST.gearLevelCost(g) ? ' disabled' : '') + '>' + ((g.tune || 0) >= ST.TUNE_MAX ? 'Fully tuned' : 'Tune +1 · ' + fmt(ST.gearLevelCost(g))) + '</button>' : '') + '</div>';
     });
     h += '</div>';
     const slots = M.xfSlots(p);
@@ -1071,7 +1072,7 @@
     const hrs = r.awaySec >= 3600 ? Math.floor(r.awaySec / 3600) + 'h ' + Math.round((r.awaySec % 3600) / 60) + 'm' : Math.max(1, Math.round(r.awaySec / 60)) + ' min';
     let h = '<div class="pick-h"><div class="eyebrow">Welcome back</div><h2 class="big-title">While you were away</h2><p class="sub">Gone ' + hrs + '.</p></div><div class="awl">';
     const row = (icn, b, i) => '<div class="aw-r">' + ic(icn, 20) + '<span><b>' + b + '</b>' + (i ? '<i>' + i + '</i>' : '') + '</span></div>';
-    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: about a third of your passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
+    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: a quarter of your passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
     if (r.games) {
       const rc = r.rec || { w: 0, l: 0, otl: 0, gf: 0, ga: 0 };
       h += row('season', r.games + ' game' + (r.games > 1 ? 's' : '') + ' played · ' + rc.w + '-' + rc.l + '-' + rc.otl, 'Goals ' + rc.gf + '–' + rc.ga + (r.gamePucks ? ' · +' + fmt(r.gamePucks) + ' pucks from wins' : ''));

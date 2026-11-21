@@ -154,13 +154,15 @@
     const ease = st.season === 1 && st.div === 15 ? -1.5 : 0;
     // low divisions keep the field within about 30% of the middle, so no Rec League superteam runs the table
     const ref = (d.lo + d.hi) / 2, lo = Math.max(d.lo, ref / 1.3), hi = Math.min(d.hi, ref * 1.3);
+    // from Division 10 up the league is deeper than its rating band: about +1 per division, +9 in Elite
+    const deep = Math.max(0, (11 - st.div) * 0.9);
     // in Division 1 the league catches up: rivals improve each season you spend there
     const climb = st.div === 1 ? Math.min(30, 2.5 * (st.eliteSeasons || 0)) : 0;
     // every new franchise the whole league is stronger: +5% and +1 Overall per franchise (up to +35%)
     const fr = st.prestige || 0, hard = Math.min(1.35, 1 + 0.05 * fr);
     const nAI = leagueSize() - 1;
     for (let i = 0; i < nAI; i++) {
-      const strength = (lo + (hi - lo) * ((i + 0.5) / nAI) + ease + climb) * hard + fr;
+      const strength = (lo + (hi - lo) * ((i + 0.5) / nAI) + ease + climb + deep) * hard + fr;
       const city = cities.splice(M.ri(0, cities.length - 1), 1)[0] || 'Harbor';
       const mas = mascots.splice(M.ri(0, mascots.length - 1), 1)[0] || 'Club';
       out.push({
@@ -896,16 +898,19 @@
     save(); emit('roster');
     return moved;
   }
+  // gear tuning: the late-game puck sink. +1 to the piece's main stat per step, up to +3, priced in minutes of
+  // passive income so it stays meaningful however rich the club gets
+  const TUNE_MAX = 3;
   function levelGear(gearId) {
     const g = findGear(gearId);
-    if (!g || g.level >= 5) return false;
+    if (!g || (g.tune || 0) >= TUNE_MAX) return false;
     const cost = gearLevelCost(g);
     if (st.pucks < cost) return false;
-    st.pucks -= cost; g.level++;
+    st.pucks -= cost; g.tune = (g.tune || 0) + 1; g.p += 1;
     st.team.roster.forEach(checkGold);
     save(); emit('roster'); return true;
   }
-  function gearLevelCost(g) { return Math.round(60 * Math.pow(1.6, D.RIDX[g.rarity]) * Math.pow(1.5, g.level) * payout()); }
+  function gearLevelCost(g) { const t = g.tune || 0, ri = D.RIDX[g.rarity]; return Math.round(Math.max(400 * Math.pow(1.6, ri) * Math.pow(1.6, t) * payout(), passiveRate() * 60 * (6 + 8 * t) * (1 + 0.25 * ri))); }
   function findGear(id) {
     const g = st.gear.find(x => x.id === id); if (g) return g;
     for (const p of st.team.roster) for (const k in p.gear) if (p.gear[k] && p.gear[k].id === id) return p.gear[k];
@@ -1133,7 +1138,14 @@
   // so a trade never hands back more than it takes.
   const RV = [1, 2.5, 6, 15, 40];
   function tradeValue(p) { return RV[D.RIDX[p.rarity]] * (0.6 + 0.4 * M.clamp(M.trainedOverall(p) / Math.max(10, div().hi), 0.3, 1.6)); }
-  function pickValue(round) { const o = pickOdds(round); return o.reduce((s, x, i) => s + x / 100 * RV[i], 0); }
+  // a pick is worth what it will produce: rarity odds times the trade value of a player at the expected draft rating
+  // for this team (so draft-then-trade-back can never make value out of nothing)
+  function pickValue(round) {
+    const o = pickOdds(round), d = div(), exp = Math.min(d.hi + (round <= 2 ? 3 : 0), Math.max(d.lo, teamOvr()) + ROUND_EDGE[round] + 2);
+    const f = 0.6 + 0.4 * M.clamp(exp / Math.max(10, d.hi), 0.3, 1.6);
+    // choosing the best of a five-player board lifts what a pick produces by roughly 40-90% (more in late rounds)
+    return o.reduce((s, x, i) => s + x / 100 * RV[i], 0) * f * 1.15 * (1.45 + 0.07 * (round - 1));
+  }
   function tradeQuote(ids, kind) {
     const ps = ids.map(byId).filter(p => p && tradeable(p) && bench().indexOf(p) >= 0);
     const P = ps.reduce((s, p) => s + tradeValue(p), 0), out = { P, n: ps.length, kind, items: [], text: '' };
@@ -1719,7 +1731,7 @@
     if (awaySec > 60) {
       const sec = Math.max(0, Math.min(awaySec, offlineHours() * 3600 - st.offDay.sec));
       st.offDay.sec += sec;
-      pucks = Math.round(0.36 * passiveRate() * sec);   // away: about a third of the (now higher) passive rate, same as before st.pucks += pucks;
+      pucks = Math.round(0.25 * passiveRate() * sec);   // away: a quarter of the passive rate, so active play matters more st.pucks += pucks;
     }
     let n = 0;
     const me0 = teamById('me') ? Object.assign({}, teamById('me')) : null, rank0 = sorted().findIndex(t => t.id === 'me') + 1;
@@ -1756,7 +1768,7 @@
     on, emit, get, div, divRef, tier, tierIdx, leagueSize, poTeams, poRounds, roundNames, franchiseNo, payout, newGame, startSeason, beginNextSeason,
     prepareGame, commitGame, playNextGame, enterPlayoffs, preparePlayoff, commitPlayoff, playPlayoffGame,
     sorted, teamById, offerPick, takePick, rerollPick, takeChampionPack,
-    spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,
+    spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, TUNE_MAX, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,
     upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, buyTokens, LEGEND_COST, BREAK_MAX, shardPrice, buyShards,
     teamOvr, clickValue, passiveRate, tickPassive, activeBoosts, buyBoost, activateBoost, boostCost,
     fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, tapWeek, WEEK_GOAL, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
