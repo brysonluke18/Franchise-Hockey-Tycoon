@@ -229,14 +229,19 @@
   };
 
   // ---------------------------------------------------------------- x-factors (no slot below rare; a second at legendary)
+  // Traits: superstar powers from Hall of Fame (franchise) achievements. Only Legendary players (1 slot) and
+  // Hall of Famers (2 slots) can wear them. Strong, but each one tops out well short of winning games on its own.
   const XFACTORS = [
-    { k: 'workhorse', n: 'Workhorse', r: 'uncommon', pos: 'skater', d: 'Ignores the third-period fatigue penalty.' },
-    { k: 'heavyshot', n: 'Heavy Shot', r: 'rare', pos: 'skater', d: 'Gets about 8% more of his line’s goals.' },
-    { k: 'shutdown', n: 'Shutdown', r: 'rare', pos: 'skater', d: 'The opposing offense plays 3% weaker.' },
-    { k: 'playmaker', n: 'Quarterback', r: 'epic', pos: 'skater', d: 'Takes the primary assist on goals he is on the ice for; his line’s offense +3%.' },
-    { k: 'gloveflash', n: 'Glove Flash', r: 'epic', pos: 'goalie', d: 'Save percentage +.006.' },
-    { k: 'franchise', n: 'Franchise', r: 'legendary', pos: 'skater', d: 'His line gets first-line ice time, wherever it sits.' },
-    { k: 'generational', n: 'Generational', r: 'legendary', pos: 'skater', d: 'Takes an even bigger share of the scoring the more he outclasses the opposition.' }
+    { k: 'workhorse', n: 'Iron Lungs', r: 'rare', pos: 'skater', d: 'Never tires in the third period, and his line gets 12% more ice time.' },
+    { k: 'heavyshot', n: 'Heavy Shot', r: 'rare', pos: 'skater', d: 'Takes 15% more shots and gets 20% more of his line’s goals.' },
+    { k: 'shutdown', n: 'Shutdown', r: 'rare', pos: 'skater', d: 'Smothers the other team: their offense plays 6% weaker.' },
+    { k: 'bodyguard', n: 'Bodyguard', r: 'rare', pos: 'skater', d: 'Nobody touches his teammates for free: rivals take 25% more penalties.' },
+    { k: 'playmaker', n: 'Quarterback', r: 'epic', pos: 'skater', d: 'Takes the primary assist on goals he is on the ice for; his line’s offense +6%.' },
+    { k: 'gloveflash', n: 'Brick Wall', r: 'epic', pos: 'goalie', d: 'Save percentage +.010.' },
+    { k: 'bornleader', n: 'Born Leader', r: 'epic', pos: 'skater', d: 'Wipes out all negative chemistry across your whole lineup while he dresses.' },
+    { k: 'franchise', n: 'Franchise Player', r: 'legendary', pos: 'skater', d: 'His line gets first-line ice time wherever it sits, and its offense +5%.' },
+    { k: 'generational', n: 'Generational', r: 'legendary', pos: 'skater', d: 'Takes over against weaker teams: a far bigger share of the scoring, +10% on top.' },
+    { k: 'mrplayoffs', n: 'Mr. Playoffs', r: 'legendary', pos: 'skater', d: 'The whole team’s offense +6% in the playoffs.' }
   ];
 
   // ---------------------------------------------------------------- tendencies

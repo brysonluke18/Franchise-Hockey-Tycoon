@@ -45,7 +45,7 @@
     const p = Math.floor(e.t / 20);
     return ['1st', '2nd', '3rd'][p] + ' ' + mmss(e.t - p * 20);
   }
-  const TAGN = { pp: ' · PPG', sh: ' · SHG' };
+  const TAGN = { pp: ' · PPG', sh: ' · SHG', gg: ' · empty net, goalie goal' };
   function goalLine(e) { return e.s === 'a' ? (e.sc || 'Goal') + (e.a1 ? ' (' + e.a1 + (e.a2 ? ', ' + e.a2 : '') + ')' : ' (unassisted)') + (TAGN[e.tag] || '') : ''; }
 
   // ---------------------------------------------------------------- puck path

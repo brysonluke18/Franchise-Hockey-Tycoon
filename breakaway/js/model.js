@@ -221,8 +221,10 @@
   function isGold(p) { return overall(p) > 99; }
   // early points are discounted (about 40% at a rating of 10, full price from 30 up) so the first hours have plenty to buy
   function upgradeCost(value) { const T = D.TUNING, early = Math.max(0.4, Math.min(1, (value + 2) / 32)); return Math.max(1, Math.round(T.costBase * Math.pow(T.costGrowth, value) * early * (T.costMult || 1))); }
-  function xfSlots(p) { const i = D.RIDX[p.rarity]; return i >= 4 ? 2 : i >= 2 ? 1 : 0; }
-  function hasXF(p, k) { return !!p && (p.xf === k || p.xf2 === k); }
+  // trait slots: Legendary players get one, Hall of Famers (over 99 Overall) two. A trait in a slot the player
+  // no longer has (say he dropped below 100 without his gear) waits there inactive.
+  function xfSlots(p) { return isGold(p) ? 2 : p.rarity === 'legendary' ? 1 : 0; }
+  function hasXF(p, k) { if (!p) return false; const s = xfSlots(p); return (s >= 1 && p.xf === k) || (s >= 2 && p.xf2 === k); }
 
   // ---------------------------------------------------------------- chemistry
   // Games together is the big, permanent part: it keeps growing and by 1,000 games it has
@@ -260,9 +262,11 @@
   }
   function fitChem(ps) { const parts = fitParts(ps); return { mult: 1 + parts.reduce((s, x) => s + x.v, 0), notes: parts.map(x => x.t) }; }
   // the full picture for one line or pair: games, fit parts (negatives already faded), total and stars
-  function chemInfo(ids, chem, ps) {
+  // noNeg: a Born Leader in the lineup wipes every negative fit part
+  function chemInfo(ids, chem, ps, noNeg) {
     const g = avgGames(ids, chem), fade = Math.max(0, 1 - g / CHEM_FADE);
-    const parts = fitParts(ps).map(x => ({ t: x.t, v: x.v < 0 ? x.v * fade : x.v, faded: x.v < 0 && fade < 1 }));
+    const parts = fitParts(ps).filter(x => !(noNeg && x.v < 0)).map(x => ({ t: x.t, v: x.v < 0 ? x.v * fade : x.v, faded: x.v < 0 && fade < 1 }));
+    if (noNeg && fitParts(ps).some(x => x.v < 0)) parts.push({ t: 'Born Leader', v: 0, leader: true });
     const gb = gamesBonus(g), mult = 1 + gb + parts.reduce((s, x) => s + x.v, 0);
     return { games: Math.round(g), gb, parts, mult, stars: chemStars(mult) };
   }

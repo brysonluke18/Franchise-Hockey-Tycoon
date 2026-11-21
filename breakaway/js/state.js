@@ -218,6 +218,7 @@
   };
   function goalKind(id, tag, ot) {
     if (ot) return 'OT WINNER!';
+    if (tag === 'gg') return 'GOALIE GOAL!';
     if (tag === 'sh') return 'SHORTY!';
     if (tag === 'pp' && M.rand() < 0.35) return 'POWER PLAY GOAL!';
     const p = id && byId(id), l = GOAL_KINDS[p && p.type] || GOAL_KINDS.twoway;
@@ -234,7 +235,7 @@
     res.periods.forEach((p, i) => {
       const myPer = mine.filter(g => g.per === i);
       for (let k = 0; k < p.a; k++) {
-        const g = myPer[k] || {}, pen = g.pen != null ? pens[g.pen] : null, t = pen ? inPen(pen) : rt(i);
+        const g = myPer[k] || {}, pen = g.pen != null ? pens[g.pen] : null, t = g.tag === 'gg' ? 57.8 + M.rand() * 1.8 : pen ? inPen(pen) : rt(i);
         if (pen && !pen.sh) pen.end = t;
         ev.push({ t, s: 'a', sc: nameOf(g.sc), a1: nameOf(g.a1), a2: nameOf(g.a2), scId: g.sc, tag: g.tag || null, kind: goalKind(g.sc, g.tag) });
       }
@@ -341,6 +342,7 @@
     gp.season.sa += res.a.sa; gp.career.sa += res.a.sa;
     if (win) { gp.season.w++; gp.career.w++; } else { gp.season.l++; gp.career.l++; }
     if (res.a.ga === 0) { gp.season.so++; gp.career.so++; toast('🥅 ' + gp.name + ' — shutout!', 'milestone'); bump('shutouts', gp.career.so); }
+    if (res.a.gg === gp.id) goalieGoal(gp, true);
 
     const credit = 1 + st.coach.video * 0.03;
     A.lines.map(l => l.ids).concat(A.pairs.map(p => p.ids)).forEach(ids => {
@@ -475,6 +477,13 @@
     emit('playoffGame', out);
     return out;
   }
+  // a goalie goal: counted on the season (regular season only) and career lines, and for the franchise achievement
+  function goalieGoal(gp, season) {
+    if (season) gp.season.g = (gp.season.g || 0) + 1;
+    gp.career.g = (gp.career.g || 0) + 1;
+    st.life = st.life || {}; st.life.gg = (st.life.gg || 0) + 1;
+    toast('🥅 ' + gp.name + ' scores into the empty net! A goalie goal!', 'gold');
+  }
   function recordPlayoffStats(res, A) {
     const stats = res.a.stats || {}, po = st.playoff;
     po.pts = po.pts || {};
@@ -491,6 +500,7 @@
     gs.sa += res.a.sa; gs.ga += res.a.ga; gs.gp++;
     gp.career.gp++; gp.career.ga += res.a.ga; gp.career.sa += res.a.sa;
     if (res.a.ga === 0) { gp.career.so++; toast('🥅 ' + gp.name + ' — playoff shutout!', 'milestone'); }
+    if (res.a.gg === gp.id) goalieGoal(gp, false);
   }
 
   function champion() {
@@ -699,7 +709,7 @@
     if (!p || p.rarity !== 'epic' || (st.legendTokens || 0) < LEGEND_COST) return false;
     st.legendTokens -= LEGEND_COST;
     p.rarity = 'legendary'; st.legendBuys = (st.legendBuys || 0) + 1;
-    toast(p.name + ' is now Legendary. His strengths can reach 99 (weaker skills a little lower, by type) and a second trait slot is open.', 'gold');
+    toast(p.name + ' is now Legendary. His strengths can reach 99 (weaker skills a little lower, by type) and he can now wear a trait.', 'gold');
     save(); emit('roster'); return true;
   }
   function beginNextSeason() { startSeason(); save(); emit('newSeason', {}); }
@@ -1407,7 +1417,8 @@
     { k: 'euro', n: 'European Star', d: 'A European player reaches career points', tiers: [2500] },
     { k: 'world', n: 'United Nations', d: 'Win a title with players from 20 countries on the roster', tiers: [1] },
     { k: 'home', n: 'Homegrown', d: 'Win a title with every dressed player from one country', tiers: [1] },
-    { k: 'line', n: 'Lifers', d: 'A line plays games together', tiers: [2000] }
+    { k: 'line', n: 'Lifers', d: 'A line plays games together', tiers: [2000] },
+    { k: 'gg', n: 'Goalie Goal', d: 'One of your goalies scores a goal', tiers: [1] }
   ];
   const EURO = ['SE', 'RU', 'FI', 'CZ', 'CH', 'SK', 'DE', 'DK', 'LV', 'AT', 'NO', 'SI', 'FR', 'BY', 'UA', 'LT', 'PL', 'IT', 'GB', 'NL', 'HR', 'EE', 'HU', 'RO', 'RS', 'IS', 'ES', 'BE', 'IE'];
   function careerBest() {
@@ -1431,6 +1442,7 @@
     if (k === 'world') return life.worldTitle || 0;
     if (k === 'home') return life.homeTitle || 0;
     if (k === 'line') return life.maxLineGp || 0;
+    if (k === 'gg') return life.gg || 0;
     if (k === 'twins') return ((st.life && st.life.wins) || 0) + (st.totals.wins || 0);
     return 0;
   }

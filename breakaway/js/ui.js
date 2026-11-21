@@ -72,11 +72,12 @@
     const unitOvr = ids => { const ps = ids.map(id => by[id]).filter(Boolean); return ps.length ? Math.round(ps.reduce((s, p) => s + M.overall(p), 0) / ps.length) : 0; };
     const chemBlock = (info, ov) => '<div class="lg-chem"><b class="u-ovr">' + ov + '</b><span class="chem">Chem ' + stars(info.stars) + '</span><em>' + pct(info.mult - 1) + '</em></div>';
     const chemNotes = (info) => '<div class="lg-n"><span class="cn g">' + info.games + ' GP together ' + pct(info.gb) + '</span>' +
-      info.parts.map(x => '<span class="cn ' + (x.v >= 0 ? 'p' : 'm') + '">' + esc(x.t) + ' ' + pct(x.v) + (x.faded ? ' (fading)' : '') + '</span>').join('') + '</div>';
+      info.parts.map(x => x.leader ? '<span class="cn p">Born Leader: bad fit wiped</span>' : '<span class="cn ' + (x.v >= 0 ? 'p' : 'm') + '">' + esc(x.t) + ' ' + pct(x.v) + (x.faded ? ' (fading)' : '') + '</span>').join('') + '</div>';
     h += '<section class="lgrid' + (editMode ? ' editing' : '') + (st.showChem ? ' notes' : '') + '">';
+    const leader = L.lines.flat().concat(L.pairs.flat()).some(id => M.hasXF(by[id], 'bornleader'));
     for (let i = 0; i < 4; i++) {
       const f = L.lines[i], d = i < 3 ? L.pairs[i] : L.goalies;
-      const fi = M.chemInfo(f, t.chem, f.map(id => by[id])), di = i < 3 ? M.chemInfo(d, t.chem, d.map(id => by[id])) : null;
+      const fi = M.chemInfo(f, t.chem, f.map(id => by[id]), leader), di = i < 3 ? M.chemInfo(d, t.chem, d.map(id => by[id]), leader) : null;
       h += '<div class="lg-row"><div class="lg-h"><b>Line ' + (i + 1) + '</b></div><div class="lg-body">' +
         '<div class="lg-col">' + chemBlock(fi, unitOvr(f)) + '<div class="lg-tiles f">' + f.map((id, j) => gtile(by[id], slotLbl[j])).join('') + '</div>' + chemNotes(fi) + '</div>' +
         '<i class="lg-gap"></i>' +
@@ -630,7 +631,7 @@
     // tendencies: how he plays, good in green, bad in red
     if ((p.tend || []).length) h += '<div class="tends">' + p.tend.map(k => { const t = D.TENDENCIES[k]; return t ? '<span class="tend ' + (t.good ? 'up' : 'down') + '" title="' + esc(t.d) + '"><b>' + (t.good ? '+' : '−') + '</b>' + esc(t.n) + '<i>' + esc(t.d) + '</i></span>' : ''; }).join('') + '</div>';
     const sv = l => l.sa ? (1 - l.ga / l.sa).toFixed(3).slice(1) : '—', pmf = v => (v > 0 ? '+' : '') + (v || 0);
-    const cols = isG ? [['GP', l => l.gp || 0], ['W', l => l.w || 0], ['L', l => l.l || 0], ['SO', l => l.so || 0], ['SV%', sv]]
+    const cols = isG ? [['GP', l => l.gp || 0], ['W', l => l.w || 0], ['L', l => l.l || 0], ['SO', l => l.so || 0], ['SV%', sv], ['G', l => l.g || 0]]
       : [['GP', l => l.gp || 0], ['G', l => l.g || 0], ['A', l => l.a || 0], ['P', l => l.p || 0], ['+/-', l => pmf(l.pm)], ['PIM', l => l.pim || 0]];
     h += '<table class="pstats"><thead><tr><th></th>' + cols.map(c => '<th>' + c[0] + '</th>').join('') + '</tr></thead><tbody>' +
       [['Season ' + st.season, p.season], ['Career', p.career]].map(([n, l]) => '<tr><td>' + n + '</td>' + cols.map(c => '<td>' + c[1](l || {}) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
@@ -674,7 +675,7 @@
           '<button class="btn sm' + (can ? ' primary' : '') + '" data-break="' + p.id + '"' + (can ? '' : ' disabled') + '>Break through</button></div>';
       }
       h += '<div class="note">Epic is as far as promotion goes. Breakthroughs let a player you love keep climbing. <b style="color:' + D.RARITY[4].color + '">Legendary</b> players come from the draft, free agency, title packs and the three-for-one trade.</div>' +
-        '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: Legendary caps (strengths up to 99, weaker skills lower by type) and two trait slots.</i></div>' +
+        '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: Legendary caps (strengths up to 99, weaker skills lower by type) and a trait slot.</i></div>' +
         '<div class="legbtns"><button class="btn sm gold" data-legbuy="' + p.id + '"' + ((st.legendTokens || 0) >= ST.LEGEND_COST ? '' : ' disabled') + '>Use ' + ST.LEGEND_COST + ' tokens</button>' +
         '<button class="btn sm" data-tokbuy="1">Buy 5 · $0.99</button><span class="legtok">You have ' + (st.legendTokens || 0) + ' Legend token' + ((st.legendTokens || 0) === 1 ? '' : 's') + '</span></div></div></div>';
     }
@@ -689,8 +690,8 @@
     });
     h += '</div>';
     const slots = M.xfSlots(p);
-    h += '<div class="sec-h in"><h2>Traits</h2><span class="sec-note">' + (slots ? slots + ' slot' + (slots > 1 ? 's' : '') : 'Unlocks at Rare') + '</span></div>';
-    if (!slots) h += '<div class="empty">' + ic('lock', 20) + '<span>Rare and Epic players get one trait slot. Legendary players get two.</span></div>';
+    h += '<div class="sec-h in"><h2>Traits</h2><span class="sec-note">' + (slots ? slots + ' slot' + (slots > 1 ? 's' : '') : 'Legendary and Hall of Fame only') + '</span></div>';
+    if (!slots) h += '<div class="empty">' + ic('lock', 20) + '<span>Traits are superstar powers. Legendary players get one trait slot; Hall of Famers (over 99 Overall) get two.</span></div>';
     [1, 2].slice(0, slots).forEach(n => {
       const key = n === 2 ? p.xf2 : p.xf, xf = key && D.XFACTORS.find(x => x.k === key);
       h += '<button class="xfslot" data-xf="' + p.id + '" data-xslot="' + n + '" style="--rc:' + (xf ? A.rarityColor(xf.r) : 'var(--line2)') + '"><span class="xf-ic">' + ic('bolt', 22) + '</span>' +

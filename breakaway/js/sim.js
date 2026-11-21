@@ -22,15 +22,20 @@
     const byId = {};
     team.roster.forEach(p => { byId[p.id] = p; });
     const chem = team.chem || {};
+    // Born Leader anywhere in the dressed lineup wipes every negative chemistry part
+    const dressed = team.lineup.lines.flat().concat(team.lineup.pairs.flat()).map(id => byId[id]).filter(Boolean);
+    const leader = dressed.some(p => hasXF(p, 'bornleader'));
 
     const lines = team.lineup.lines.map((ids, i) => {
       const ps = ids.map(id => byId[id]);
       let o = 0.30 * avg(ps, 'shooting') + 0.22 * avg(ps, 'passing') + 0.20 * avg(ps, 'hands') + 0.16 * avg(ps, 'skating') + 0.12 * avg(ps, 'iq');
-      if (ps.some(p => hasXF(p, 'playmaker'))) o *= 1.03;
-      const c = M.chemInfo(ids, chem, ps).mult;
+      if (ps.some(p => hasXF(p, 'playmaker'))) o *= 1.06;
+      if (ps.some(p => hasXF(p, 'franchise'))) o *= 1.05;
+      const c = M.chemInfo(ids, chem, ps, leader).mult;
       // playoff hockey shortens the bench: top lines play more, the fourth line barely
       let w = LINE_W[i] * (opts.playoff ? PO_LINE[i] : 1);
       if (ps.some(p => hasXF(p, 'franchise'))) w = Math.max(w, LINE_W[0]);
+      if (ps.some(p => hasXF(p, 'workhorse'))) w *= 1.12;
       // backcheckers lift a line's defensive work, lazy forwards drag it down
       const back = ps.reduce((s, p) => s + M.tfx(p, 'back'), 0) / ps.length;
       const dshare = (0.5 * avg(ps, 'defense') + 0.3 * avg(ps, 'iq') + 0.2 * avg(ps, 'skating')) * back;
@@ -40,7 +45,7 @@
       const ps = ids.map(id => byId[id]);
       const d = (0.34 * avg(ps, 'defense') + 0.24 * avg(ps, 'iq') + 0.22 * avg(ps, 'skating') + 0.20 * avg(ps, 'grit')) * (ps.reduce((s, p) => s + M.tfx(p, 'back'), 0) / ps.length);
       const off = 0.35 * avg(ps, 'passing') + 0.35 * avg(ps, 'shooting') + 0.3 * avg(ps, 'skating');
-      const c = M.chemInfo(ids, chem, ps).mult;
+      const c = M.chemInfo(ids, chem, ps, leader).mult;
       return { ids, ps, d, off, chem: c, w: PAIR_W[j] * (opts.playoff ? PO_PAIR[j] : 1), idx: j, shutdown: ps.some(p => hasXF(p, 'shutdown')) };
     });
 
@@ -53,13 +58,14 @@
     // forwards help defend a little; defense pairs carry most of it
     const psum = pairs.reduce((s, p) => s + p.w, 0);
     let Dr = pairs.reduce((s, p) => s + (p.w / psum) * p.chem * p.d, 0) * 0.82 + lines.reduce((s, l) => s + (l.w / wsum) * l.dfw, 0) * 0.18;
+    if (opts.playoff && dressed.some(p => hasXF(p, 'mrplayoffs'))) O *= 1.06;
     if (opts.style === 'off') { O *= 1.04; Dr *= 0.97; }
     if (opts.style === 'def') { Dr *= 1.04; O *= 0.97; }
 
     return {
       name: team.name, abbr: team.abbr, user: true, byId,
       O, D: Dr, G: grat, lines, pairs, goalie: gp, playoff: !!opts.playoff, gsv: M.tfx(gp, 'sv', !!opts.playoff),
-      gloveflash: hasXF(gp, 'gloveflash'),
+      gloveflash: hasXF(gp, 'gloveflash'), bodyguard: dressed.some(p => hasXF(p, 'bodyguard')),
       shutdown: pairs.some(p => p.shutdown)
     };
   }
@@ -87,7 +93,7 @@
     if (user && opts.edge) { user.goalRate *= opts.edge; them.goalRate /= opts.edge; }
     let ga = 0, gb = 0;
     const periods = [], pens = [];
-    sideA.disc = discipline(A); sideB.disc = discipline(B);
+    sideA.disc = discipline(A) * (B.bodyguard ? 1.25 : 1); sideB.disc = discipline(B) * (A.bodyguard ? 1.25 : 1);
     for (let per = 0; per < 3; per++) {
       const down = !user ? 0 : user === sideA ? gb - ga : ga - gb;
       const push = per > 0 && down > 0 ? 1 + Math.min(0.3, 0.12 * down) * (opts.edge ? 1.3 : 1) : 1;
@@ -100,6 +106,13 @@
       periods.push({ a: pa, b: pb });
     }
 
+    // goalie goal: a rare empty-netter. Only when the user's team leads by one or two late (the other side has
+    // pulled its goalie), more likely with good puck handling: about 1 in 80 to 1 in 250 of those games
+    let gg = null;
+    if (A.user && A.goalie && ga > gb && ga - gb <= 2 && M.rand() < 0.004 + 0.008 * Math.min(1, M.eff(A.goalie, 'puckhandling') / 99)) {
+      ga++; periods[2].a++; gg = A.goalie.id;
+      sideA.list.push({ per: 2, sc: gg, a1: null, a2: null, tag: 'gg' }); row(sideA.stats, gg).g++;
+    }
     let ot = false, so = false;
     if (ga === gb) {
       ot = true;
@@ -117,7 +130,7 @@
     if (B.user) extras(sideB);
 
     const res = {
-      a: { goals: ga, shots: sideA.shots, stats: sideA.stats, list: sideA.list, saves: sideB.shots - gb },
+      a: { goals: ga, shots: sideA.shots, stats: sideA.stats, list: sideA.list, saves: sideB.shots - gb, gg },
       b: { goals: gb, shots: sideB.shots, stats: sideB.stats, list: sideB.list, saves: sideA.shots - ga },
       periods, ot, so, pens, imbalance: sideA.imbalance || sideB.imbalance || 1
     };
@@ -132,11 +145,11 @@
 
   function sideSetup(self, opp, ref) {
     let O = self.O;
-    if (opp.shutdown) O *= 0.97;
+    if (opp.shutdown) O *= 0.94;
     const shots = Math.round(M.clamp(30 * Math.pow(O / Math.max(6, opp.D), 0.65), 16, 50));
     // goaltending swings hard: a goalie well above the division carries a team
     let psave = 0.900 + 0.0020 * (opp.G - ref) - 0.0010 * (O - ref);
-    if (opp.gloveflash) psave += 0.006;
+    if (opp.gloveflash) psave += 0.010;
     psave += opp.gsv || 0;   // goalie tendencies
     psave = M.clamp(psave, 0.83, 0.965);
     return { self, opp, O, shots, psave, ref, stats: self.user ? {} : null, list: self.user ? [] : null, goalRate: 1 - psave };
@@ -201,7 +214,7 @@
 
     // shots: three in four from forwards
     for (let s = 0; s < shots; s++) {
-      if (M.rand() < 0.75) { const l = self.lines[M.weightedIndex(lw)]; row(st, l.ids[M.weightedIndex(usage(l, oppD, Tn, self.playoff).map((u, i) => u * M.tfx(l.ps[i], 'shot')))]).s++; }
+      if (M.rand() < 0.75) { const l = self.lines[M.weightedIndex(lw)]; row(st, l.ids[M.weightedIndex(usage(l, oppD, Tn, self.playoff).map((u, i) => u * M.tfx(l.ps[i], 'shot') * (hasXF(l.ps[i], 'heavyshot') ? 1.15 / 1.2 : 1)))]).s++; }
       else { const pr = self.pairs[M.weightedIndex(pw)]; row(st, pr.ids[M.weightedIndex(pr.ps.map(p => Math.max(1, M.eff(p, 'shooting')) * T(p).goal * M.tfx(p, 'shot')))]).s++; }
     }
 
@@ -254,10 +267,11 @@
   function usage(line, oppD, Tn, po) {
     return line.ps.map(p => {
       const R = Math.max(1, M.overall(p));
-      let mism = Math.pow(R / Math.max(6, oppD), hasXF(p, 'generational') ? Tn.mismatchExp * 1.6 : Tn.mismatchExp);
+      let mism = Math.pow(R / Math.max(6, oppD), hasXF(p, 'generational') ? Tn.mismatchExp * 2 : Tn.mismatchExp);
       mism = M.clamp(mism, Tn.mismatchLo, Tn.mismatchHi);
       let u = Math.pow(R, Tn.starExp) * mism * M.gammaUnit(Tn.gammaShape) * T(p).goal;
-      if (hasXF(p, 'heavyshot')) u *= 1.08;
+      if (hasXF(p, 'heavyshot')) u *= 1.2;
+      if (hasXF(p, 'generational')) u *= 1.1;
       return u * M.tfx(p, 'goal', po);
     });
   }
