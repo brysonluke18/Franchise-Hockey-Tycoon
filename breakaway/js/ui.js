@@ -264,6 +264,8 @@
         '<button class="btn primary big" data-act="nextseason">Start season ' + st.season + '</button></section>';
       if (ST.canPrestige()) h += '<section class="panel prest"><div class="eyebrow">Franchise ' + ((st.prestige || 0) + 2) + ' available</div><h3>Start a new franchise</h3>' +
         '<p>Back to the Rec League with up to ' + ST.keepLimit() + ' Legacy player' + (ST.keepLimit() > 1 ? 's' : '') + ' and +' + (((st.prestige || 0) + 1) * 10) + '% income for good. Legacy players come back Legendary, starting about 5 Overall above the new roster, and keep their trophies plus +2 to every attribute per franchise they carry. Coach skills, achievements and dailies start over. Hall of Fame gear, traits, chemistry and franchise achievements carry over.</p>' +
+        '<div class="fr-deal"><div class="up"><b>You get</b><span>+' + (((st.prestige || 0) + 1) * 10) + '% income for good</span><span>' + ST.keepLimit() + ' Legacy slot' + (ST.keepLimit() > 1 ? 's' : '') + '</span><span>' + Math.min(5, (st.prestige || 0) + 1) + ' 1st-round pick' + (Math.min(5, (st.prestige || 0) + 1) > 1 ? 's' : '') + '</span><span>' + (60 * ((st.prestige || 0) + 1)) + ' shards of each kind</span><span>A Franchise Builder reward</span></div>' +
+        '<div class="down"><b>The league gets tougher</b><span>Every rival +' + Math.round((Math.min(1.35, 1 + 0.05 * ((st.prestige || 0) + 1)) - 1) * 100) + '% and +' + ((st.prestige || 0) + 1) + ' Overall</span><span>You will need a more maxed-out team to climb</span></div></div>' +
         '<button class="btn gold" data-act="prestige">' + ic('trophy', 16) + ' Choose Legacy players</button></section>';
     }
     if (feed.length) h += sh('Results') + '<div class="feed">' + feed.slice(0, 20).map(f => '<span class="fchip ' + (f.win ? 'w' : 'l') + '"><b>' + (f.win ? 'W' : 'L') + '</b>' + f.gf + '–' + f.ga + (f.ot ? '<i>' + (f.so ? 'SO' : 'OT') + '</i>' : '') + '<em>' + esc(f.oppAbbr) + '</em></span>').join('') + '</div>';
@@ -487,7 +489,7 @@
         '<span class="odds-l">' + odds.map((o, i) => o ? '<em style="color:' + D.RARITY[i].color + '">' + D.RARITY[i].n + ' ' + o + '%</em>' : '').join('') + '</span></span>' +
         '<span class="dp-a"><span class="dp-n">×' + n + '</span><button class="buy' + (n ? ' primary' : '') + '" data-draft="' + r + '"' + (n ? '' : ' disabled') + '>Draft</button>' +
         (r > 1 && n >= 2 ? '<button class="buy" data-combine="' + r + '">2 → ' + ST.ord(r - 1) + '</button>' : '') + '</span></div>';
-    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 4 to 8 better than your average, a 7th-rounder about 4 to 8 worse, and nobody arrives far above your division’s top. Scouts lean toward your weakest starter’s position. Rarity odds improve each division you climb; a 1st-round pick always has a Legendary chance (1% in Division 8, up to 20% in Division 1).</div>';
+    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 4 to 8 better than your average, a 7th-rounder about 4 to 8 worse, and nobody arrives far above your division’s top. Scouts lean toward your weakest starter’s position. Rarity odds improve each division you climb; a 1st-round pick always has a Legendary chance (1% in Division 15, up to 20% in Division 1).</div>';
 
     h += sh(ic('bolt', 18) + ' Boosts', '<span class="sec-note">Earned from rewards or bought here</span>');
     h += '<section class="panel flush boosts">' + D.BOOSTS.map(b => {
@@ -515,7 +517,7 @@
   function refreshShop() {
     const st = ST.get(), now = Date.now();
     if (!st.shop || st.shop.length !== 3 || now - st.shopAt > 4 * 3600 * 1000) {
-      const i = D.DIVISIONS.findIndex(x => x.d === st.div);
+      const i = ST.tierIdx();
       ST.refreshAgents(true);
       st.shop = [];
       for (let n = 0; n < 3; n++) {
@@ -623,6 +625,8 @@
       }).join('') + '</div>';
     }
   // season and career side by side in one compact table (takes less room than the old four big tiles)
+    // tendencies: how he plays, good in green, bad in red
+    if ((p.tend || []).length) h += '<div class="tends">' + p.tend.map(k => { const t = D.TENDENCIES[k]; return t ? '<span class="tend ' + (t.good ? 'up' : 'down') + '" title="' + esc(t.d) + '"><b>' + (t.good ? '+' : '−') + '</b>' + esc(t.n) + '<i>' + esc(t.d) + '</i></span>' : ''; }).join('') + '</div>';
     const sv = l => l.sa ? (1 - l.ga / l.sa).toFixed(3).slice(1) : '—', pmf = v => (v > 0 ? '+' : '') + (v || 0);
     const cols = isG ? [['GP', l => l.gp || 0], ['W', l => l.w || 0], ['L', l => l.l || 0], ['SO', l => l.so || 0], ['SV%', sv]]
       : [['GP', l => l.gp || 0], ['G', l => l.g || 0], ['A', l => l.a || 0], ['P', l => l.p || 0], ['+/-', l => pmf(l.pm)], ['PIM', l => l.pim || 0]];

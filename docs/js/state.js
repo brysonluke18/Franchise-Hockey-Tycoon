@@ -27,6 +27,10 @@
 
   function get() { return st; }
   function div() { return D.DIVISIONS.find(d => d.d === st.div); }
+  // 15 divisions share the reward and odds tables that were built for 8: tier() is that older 8..1 scale
+  // (15-14 -> 8, 13-12 -> 7, ... 3-2 -> 2, 1 -> 1) and tierIdx() its 0..7 index
+  function tier() { return 8 - Math.floor((15 - st.div) / 2); }
+  function tierIdx() { return 8 - tier(); }
   function franchiseNo() { return (st && st.prestige || 0) + 1; }
   function divRef() { const d = div(); return (d.lo + d.hi) / 2; }
   function payout() { return div().payout * (1 + 0.05 * st.promos) * (st.doubler ? 2 : 1) * (1 + st.coach.skills * 0.025); }
@@ -43,7 +47,7 @@
   // ---------------------------------------------------------------- facilities
   function facLvl(k) { return (st.fac && st.fac[k]) || 0; }
   function facVal(k) { const f = D.FACILITIES.find(x => x.k === k); return f ? f.per * facLvl(k) : 0; }
-  function facMax() { return 2 + (8 - st.div) * 2; }
+  function facMax() { return 2 + (15 - st.div); }
   // early levels used to cost almost nothing; now each level is a real decision (about 3x early, +40% late)
   function facCost(k) { return Math.round(1200 * Math.pow(2.0, facLvl(k)) * payout()); }
   function applyFac() { D.TUNING.costMult = 1 - facVal('train') / 100; }
@@ -112,7 +116,7 @@
       roster, lineup: M.defaultLineup(roster), chem: {}
     };
     st = {
-      v: 1, team, div: 8, season: 1, promos: 0, fav: kit.fav || null,
+      v: 1, team, div: 15, div15: true, season: 1, promos: 0, fav: kit.fav || null,
       pucks: 600, shards: { F: 0, D: 0, G: 0 }, tape: 0, picks: { 5: 1, 6: 1, 7: 2 },
       gear: [], xfs: [], boosts: { rush: 1, sticks: 1 }, active: [],
       coach: null,
@@ -135,17 +139,19 @@
   function aiTeams() {
     const d = div();
     const out = [];
-    const local = st.fav && st.div >= 6 && D.CITY_BY_NAT[st.fav];
+    const local = st.fav && tier() >= 6 && D.CITY_BY_NAT[st.fav];
     const cities = (local ? D.CITY_BY_NAT[st.fav] : D.CITIES).slice();
     const mascots = D.MASCOTS.slice();
     // the very first season leans a little easier
-    const ease = st.season === 1 && st.div === 8 ? -1.5 : 0;
+    const ease = st.season === 1 && st.div === 15 ? -1.5 : 0;
     // low divisions keep the field within about 30% of the middle, so no Rec League superteam runs the table
     const ref = (d.lo + d.hi) / 2, lo = Math.max(d.lo, ref / 1.3), hi = Math.min(d.hi, ref * 1.3);
     // in Division 1 the league catches up: rivals improve each season you spend there
     const climb = st.div === 1 ? Math.min(30, 2.5 * (st.eliteSeasons || 0)) : 0;
+    // every new franchise the whole league is stronger: +5% and +1 Overall per franchise (up to +35%)
+    const fr = st.prestige || 0, hard = Math.min(1.35, 1 + 0.05 * fr);
     for (let i = 0; i < 15; i++) {
-      const strength = lo + (hi - lo) * ((i + 0.5) / 15) + ease + climb;
+      const strength = (lo + (hi - lo) * ((i + 0.5) / 15) + ease + climb) * hard + fr;
       const city = cities.splice(M.ri(0, cities.length - 1), 1)[0] || 'Harbor';
       const mas = mascots.splice(M.ri(0, mascots.length - 1), 1)[0] || 'Club';
       out.push({
@@ -254,7 +260,8 @@
     return out.sort((x, y) => x.t - y.t);
   }
   function rateMe(playoff) {
-    return S.ratePlayerTeam(st.team, { goalieIdx: !playoff && M.rand() < 0.3 ? 1 : 0, style: st.coach.style, playoff: !!playoff });
+    const g0 = byId(st.team.lineup.goalies[0]), backup = g0 && (g0.tend || []).indexOf('workhorse') >= 0 ? 0.2 : 0.3;
+    return S.ratePlayerTeam(st.team, { goalieIdx: !playoff && M.rand() < backup ? 1 : 0, style: st.coach.style, playoff: !!playoff });
   }
 
   function prepareGame() {
@@ -495,11 +502,11 @@
     2: { gear: [4, 'epic'], player: ['legendary', 'G'] }, 1: { gear: [1, 'legendary'], player: ['legendary', 'A'] }
   };
   function championshipRewards() {
-    const c = CUP[st.div], got = [];
+    const c = CUP[tier()], got = [];
     let rarity = c.player[0];
     if (st.totals.cups === 1) rarity = D.RARITY[Math.max(D.RIDX[rarity], 2)].k;   // first title: at least a rare
     for (let n = 0; n < c.gear[0]; n++) { const g = M.makeGear(c.gear[1], M.rand() < 0.1 ? 'goalie' : 'skater'); st.gear.push(g); got.push(M.gearName(g)); }
-    const round = Math.max(1, Math.min(5, Math.ceil(st.div / 1.6)));
+    const round = Math.max(1, Math.min(5, Math.ceil(tier() / 1.6)));
     addPick(round); got.push(ord(round) + '-round draft pick');
     const posName = { F: 'forward', D: 'defenseman', G: 'goalie', S: 'skater', A: 'player' }[c.player[1]];
     const pack = {
@@ -624,7 +631,7 @@
 
   // ---------------------------------------------------------------- shards and promotions
   function poolOf(p) { return p.pos === 'G' ? 'G' : (p.pos === 'D' ? 'D' : 'F'); }
-  function promoCap() { return D.PROMO_CAP[st.div]; }
+  function promoCap() { return D.PROMO_CAP[tier()]; }
   function promoCost(p) { const next = D.RARITY[D.RIDX[p.rarity] + 1]; return next ? Math.round(next.shards * (p.pos === 'G' ? D.GOALIE_SHARD_MULT : 1)) : 0; }
   function canPromote(p) { return D.RIDX[p.rarity] < Math.min(4, promoCap() + (p.legacyB ? 1 : 0)); }
   function cheapestPromotion(pool) {
@@ -633,7 +640,7 @@
   }
   // sized so at least one promotion is always affordable at the end of a season, win or lose
   function shardPackage() {
-    const i = D.DIVISIONS.findIndex(x => x.d === st.div);
+    const i = tierIdx();
     const base = 14 + i * 14;
     const pack = { F: base + M.ri(0, 8), D: Math.round(base * 0.6) + M.ri(0, 5), G: Math.round(base * 0.25) + M.ri(0, 3) };
     const affordable = ['F', 'D', 'G'].some(k => { const c = cheapestPromotion(k); return c && st.shards[k] + pack[k] >= c; });
@@ -693,7 +700,7 @@
   }
   function rollGearDrop() {
     if (M.rand() > 0.3) return null;
-    const i = D.DIVISIONS.findIndex(x => x.d === st.div);
+    const i = tierIdx();
     let ri = M.weightedIndex(DROP_W[i]); if (ri < 4 && M.rand() * 100 < facVal('equip')) ri++;
     const g = smartGear(D.RARITY[ri].k);
     if (st.autoScrap != null && st.autoScrap >= 0 && ri <= st.autoScrap) { const t = salvageValue(g); st.tape += t; st.scrapped = (st.scrapped || 0) + 1; g.scrapped = t; return g; }
@@ -715,7 +722,7 @@
     const opts = [];
     const g = theme && theme.slot ? M.makeGear(rk, theme.kind || 'skater', theme.slot) : smartGear(rk);
     opts.push({ t: 'gear', label: M.gearName(g), rarity: rk, g });
-    const sp = Math.round((10 + tier * 14) * (1 + D.DIVISIONS.findIndex(x => x.d === st.div) * 0.15));
+    const sp = Math.round((10 + tier * 14) * (1 + tierIdx() * 0.15));
     const pos = theme && theme.pool ? theme.pool : M.pick(['F', 'F', 'F', 'F', 'D', 'D', 'D', 'G']);
     opts.push({ t: 'shards', label: sp + ' shards', pos, n: sp });
     const roll = M.rand();
@@ -921,15 +928,15 @@
     5: [50, 40, 10, 0, 0], 6: [72, 26, 2, 0, 0], 7: [100, 0, 0, 0, 0]
   };
   // drafted and signed players may sit one tier above what the division lets you promote to
-  // legendary players only show up from Division 4
-  function maxRarity() { return st.div <= 4 ? 4 : 3; }
+  // legendary free agents only show up from Division 7 (tier 4)
+  function maxRarity() { return tier() <= 4 ? 4 : 3; }
   // each division climbed moves a quarter of every tier up one, so late-round picks stay relevant
-  // Legendary odds are set by round and division only: a 1st-rounder always has a shot (1% in Division 8, 20% in Division 1)
+  // Legendary odds are set by round and division only: a 1st-rounder always has a shot (1% in Division 15, 20% in Division 1)
   const LEG_ODDS = { 1: [1, 20], 2: [0, 8], 3: [0, 3] };
   function pickOdds(round) {
     const o = ROUND_ODDS[round].slice();
-    for (let s = 0; s < 8 - st.div; s++) for (let i = 2; i >= 0; i--) { const m = o[i] * 0.35; o[i] -= m; o[i + 1] += m; }
-    const t = (8 - st.div) / 7, L = LEG_ODDS[round];
+    for (let s = 0; s < 8 - tier(); s++) for (let i = 2; i >= 0; i--) { const m = o[i] * 0.35; o[i] -= m; o[i + 1] += m; }
+    const t = (15 - st.div) / 14, L = LEG_ODDS[round];
     const leg = L ? L[0] + (L[1] - L[0]) * t : 0, rest = o[0] + o[1] + o[2] + o[3];
     for (let i = 0; i < 4; i++) o[i] = Math.round(o[i] / rest * (100 - leg) * 10) / 10;
     o[4] = Math.round(leg * 10) / 10;
@@ -1109,7 +1116,7 @@
       out.items = Array(n).fill(D.RARITY[ri].k);
       out.text = n + ' ' + D.RARITY[ri].n.toLowerCase() + ' gear piece' + (n > 1 ? 's' : '');
     } else if (kind === 'shards') {
-      const n = Math.max(1, Math.round(P * 9 * (1 + D.DIVISIONS.findIndex(x => x.d === st.div) * 0.15))), w = { F: 0, D: 0, G: 0 };
+      const n = Math.max(1, Math.round(P * 9 * (1 + tierIdx() * 0.15))), w = { F: 0, D: 0, G: 0 };
       ps.forEach(p => { w[poolOf(p)] += tradeValue(p); });
       out.items = ['F', 'D', 'G'].map(k => [k, Math.round(n * w[k] / P)]).filter(x => x[1] > 0);
       out.text = out.items.map(([k, x]) => x + ' ' + k + ' shards').join(', ');
@@ -1176,7 +1183,7 @@
   }
   function refreshAgents(force) {
     if (!force && st.fa && st.fa.length && Date.now() - (st.faAt || 0) < 4 * 3600e3) return;
-    const i = D.DIVISIONS.findIndex(x => x.d === st.div);
+    const i = tierIdx();
     const w = [[55, 38, 7, 0, 0], [45, 42, 13, 0, 0], [30, 45, 22, 3, 0], [20, 45, 30, 5, 0], [12, 40, 38, 10, 0], [6, 30, 44, 18, 2], [3, 22, 45, 26, 4], [2, 15, 42, 33, 8]][i];
     // free agents fill out a lineup: never Legendary, rarely Epic, and rated a few points under your lineup
     const avoid = nameSet();
@@ -1340,7 +1347,7 @@
     fresh.forEach(p => { if (used[p.num]) { let n = 1; while (used[n]) n++; p.num = n; } used[p.num] = 1; });
     st.team.roster = keep.concat(fresh);
     st.team.lineup = M.defaultLineup(st.team.roster);
-    st.div = 8; st.promos = 0; st.eliteSeasons = 0;
+    st.div = 15; st.promos = 0; st.eliteSeasons = 0;
     st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = hof; st.picks = {}; st.xfs = traits;
     st.fac = {}; applyFac(); st.pending = null; st.pickQueue = [];
     // a new franchise starts clean: coach skills, achievements and the Elite-title requirement all reset;
@@ -1351,8 +1358,10 @@
     st.life.legacy = (st.life.legacy || 0) + keep.length;
     st.ach = {}; st.achClaim = []; st.season = 1;
     st.daily = { day: 1, claimed: 0, last: null, ready: true }; st.tapDay = null; st.tapNext = 0;
+    // a head start that grows each franchise: 1st-round picks and shards
+    addPick(1, Math.min(5, st.prestige)); ['F', 'D', 'G'].forEach(k => { st.shards[k] += 60 * st.prestige; });
     startSeason();
-    toast('Franchise ' + (st.prestige + 1) + ' begins! Back to the Rec League with ' + keep.length + ' Legacy player' + (keep.length === 1 ? '' : 's') + ' and +' + (st.prestige * 10) + '% income.', 'gold');
+    toast('Franchise ' + (st.prestige + 1) + ' begins! Back to the Rec League with ' + keep.length + ' Legacy player' + (keep.length === 1 ? '' : 's') + ' and +' + (st.prestige * 10) + '% income, plus ' + Math.min(5, st.prestige) + ' 1st-round pick' + (Math.min(5, st.prestige) > 1 ? 's' : '') + ' and ' + (60 * st.prestige) + ' of each shard. The league is ' + Math.round((Math.min(1.35, 1 + 0.05 * st.prestige) - 1) * 100) + '% tougher.', 'gold');
     save(); emit('roster'); emit('newSeason', {});
     return true;
   }
@@ -1462,8 +1471,8 @@
     const w = tapWeek(); w.n++;
     if (!w.done && w.n >= WEEK_GOAL) {
       w.done = true; addPick(2);
-      const s = 30 + D.DIVISIONS.findIndex(x => x.d === st.div) * 10; st.shards.F += s; st.shards.D += s; st.shards.G += Math.round(s / 2);
-      const ri = Math.min(4, Math.max(2, D.PROMO_CAP[st.div] + 1)), g = smartGear(D.RARITY[ri].k); st.gear.push(g);
+      const s = 30 + tierIdx() * 10; st.shards.F += s; st.shards.D += s; st.shards.G += Math.round(s / 2);
+      const ri = Math.min(4, Math.max(2, D.PROMO_CAP[tier()] + 1)), g = smartGear(D.RARITY[ri].k); st.gear.push(g);
       toast('Weekly goal: ' + fmt(WEEK_GOAL) + ' taps! A 2nd-round pick, ' + s + ' F and D shards, ' + Math.round(s / 2) + ' G shards and ' + M.gearName(g), 'gold');
       save();
     }
@@ -1491,11 +1500,11 @@
   function tapDrop(t) {
     const kind = TAP_DROPS[(t.drops = (t.drops || 0) + 1) % TAP_DROPS.length];
     let msg = '';
-    if (kind === 'gear') { const i = D.DIVISIONS.findIndex(x => x.d === st.div); const g = smartGear(D.RARITY[Math.min(4, M.weightedIndex(DROP_W[i]))].k); st.gear.push(g); msg = M.gearName(g); }
+    if (kind === 'gear') { const i = tierIdx(); const g = smartGear(D.RARITY[Math.min(4, M.weightedIndex(DROP_W[i]))].k); st.gear.push(g); msg = M.gearName(g); }
     else if (kind === 'pucks') { const pk = Math.round(clickValue() * 150); st.pucks += pk; msg = fmt(pk) + ' pucks'; }
     else if (kind === 'pick') { const r = M.rand() < 0.5 ? 6 : 7; addPick(r); msg = 'a ' + ord(r) + '-round pick'; }
     else if (kind === 'scout') { st.faTokens = (st.faTokens || 0) + 1; msg = 'a free agent rescout token'; }
-    else { const s = 6 + D.DIVISIONS.findIndex(x => x.d === st.div) * 2; st.shards.F += s; st.shards.D += Math.round(s / 2); msg = s + ' F and ' + Math.round(s / 2) + ' D shards'; }
+    else { const s = 6 + tierIdx() * 2; st.shards.F += s; st.shards.D += Math.round(s / 2); msg = s + ' F and ' + Math.round(s / 2) + ' D shards'; }
     toast('Practice bonus: ' + msg, 'promo');
     save(); emit('roster');
   }
@@ -1537,7 +1546,7 @@
     if (r.shards) Object.keys(r.shards).forEach(k => { st.shards[k] += r.shards[k]; got.push(r.shards[k] + ' ' + k + ' shards'); });
     if (r.tape) { st.tape += r.tape; got.push(r.tape + ' tape'); }
     if (r.boost) { st.boosts[r.boost] = (st.boosts[r.boost] || 0) + 1; got.push(D.BOOSTS.find(b => b.k === r.boost).n + ' boost'); }
-    if (r.gear) { const ri = Math.min(4, Math.max(2, D.PROMO_CAP[st.div])); const g = smartGear(D.RARITY[ri].k); st.gear.push(g); got.push(M.gearName(g)); }
+    if (r.gear) { const ri = Math.min(4, Math.max(2, D.PROMO_CAP[tier()])); const g = smartGear(D.RARITY[ri].k); st.gear.push(g); got.push(M.gearName(g)); }
     if (r.pick) { addPick(r.pick); got.push('a ' + ord(r.pick) + '-round pick'); }
     d.ready = false; d.claimed = d.day; d.last = new Date().toDateString();
     toast('Day ' + d.day + ': ' + got.join(', '), 'promo');
@@ -1546,7 +1555,7 @@
   }
   function applySpeed() {
     const T = D.TUNING;
-    if (st && st.demo) { T.gameIntervalSec = 8; T.playoffGameSec = 12; } else { T.gameIntervalSec = 30; T.playoffGameSec = 36; }
+    if (st && st.demo) { T.gameIntervalSec = 8; T.playoffGameSec = 12; } else { T.gameIntervalSec = 20; T.playoffGameSec = 24; }
   }
   function setDemo(on) { st.demo = !!on; applySpeed(); save(); }
   function devGrant() {
@@ -1623,6 +1632,8 @@
       if (st.tokens != null) { if (st.tokens > 0) addPick(6, st.tokens); delete st.tokens; }
       st.picks = st.picks || {}; st.fac = st.fac || {}; applyFac();
       if (st.standings) assignBadges();
+      // the league went from 8 divisions to 15: old division d becomes 2d - 1 (Rec League stays the bottom, Elite the top)
+      if (!st.div15) { st.div = 2 * st.div - 1; st.div15 = true; (st.history || []).forEach(h => { if (h.div && !h.d15) { h.div = 2 * h.div - 1; h.d15 = true; } }); }
       if (st.demo && !st.dev) st.demo = false;
       const fixed = repairRoster();
       if (fixed) setTimeout(() => toast('Fixed ' + fixed + ' lineup slot' + (fixed > 1 ? 's' : '') + ' that held the wrong player', 'promo'), 600);
@@ -1681,7 +1692,7 @@
   }
 
   G.ST = {
-    on, emit, get, div, divRef, franchiseNo, payout, newGame, startSeason, beginNextSeason,
+    on, emit, get, div, divRef, tier, tierIdx, franchiseNo, payout, newGame, startSeason, beginNextSeason,
     prepareGame, commitGame, playNextGame, enterPlayoffs, preparePlayoff, commitPlayoff, playPlayoffGame,
     sorted, teamById, offerPick, takePick, rerollPick, takeChampionPack,
     spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,

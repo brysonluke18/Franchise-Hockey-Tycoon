@@ -118,6 +118,7 @@
       if (t.weak.indexOf(k) >= 0) v -= 3;
       p.a[k] = clamp(Math.round(v), 1, attrCap(p, k));
     });
+    p.tend = rollTend(p);
     Object.assign(p, bodyFor(p, rand));
     if (opts.avoid) opts.avoid[p.name] = 1;
     return p;
@@ -134,8 +135,27 @@
   }
   function heightText(ht) { return Math.floor(ht / 12) + '′' + (ht % 12) + '″'; }
 
+  // three tendencies, never two from the same group; about half good, half bad
+  function rollTend(p, rnd) {
+    const r = rnd || rand, pool = Object.keys(D.TENDENCIES).filter(k => !!D.TENDENCIES[k].g === (p.pos === 'G'));
+    const out = [], used = {};
+    for (let i = 0; i < 40 && out.length < 3; i++) { const k = pool[Math.floor(r() * pool.length)], t = D.TENDENCIES[k]; if (used[t.x]) continue; used[t.x] = 1; out.push(k); }
+    return out;
+  }
+  // the combined effect of a player's tendencies on one sim weight (multiplied, or summed for save %)
+  function tfx(p, key, playoff) {
+    let m = key === 'sv' ? 0 : 1;
+    (p && p.tend || []).forEach(k => {
+      const f = D.TENDENCIES[k] && D.TENDENCIES[k].fx; if (!f) return;
+      if (key === 'sv') { m += (f.sv || 0) + (playoff ? f.po_sv || 0 : 0); return; }
+      if (f[key] != null) m *= f[key];
+      if (key === 'goal' && playoff && f.po_goal) m *= f.po_goal;
+    });
+    return m;
+  }
   // older saves: goalies had four skills and players had no type
   function migratePlayer(p) {
+    if (!p.tend) { let s = 7; for (let i = 0; i < p.id.length; i++) s = (s * 33 + p.id.charCodeAt(i)) >>> 0; p.tend = rollTend(p, () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }); }
     if (!p.ht) { let s = 0; for (let i = 0; i < p.id.length; i++) s = (s * 31 + p.id.charCodeAt(i)) >>> 0; const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; Object.assign(p, bodyFor(p, r)); }
     if (p.pos === 'G' && p.a.reflexes != null) {
       const r = p.a.reflexes, pos = p.a.positioning || r;
@@ -261,6 +281,6 @@
     rollType, typeOf, makePlayer, migratePlayer, heightText, blankLine, attrCap,
     eff, effAll, overall, trainedOverall, isGold, rarityOf, capOf, upgradeCost, xfSlots, hasXF, setBoostHook,
     chemMult, chemStars, pairKey, gamesChem, fitChem, unitChem, chemInfo, avgGames, CHEM_FADE,
-    makeRoster, defaultLineup
+    makeRoster, defaultLineup, rollTend, tfx
   };
 })(window.BK = window.BK || {});

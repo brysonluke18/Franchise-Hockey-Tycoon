@@ -236,6 +236,32 @@
     { k: 'generational', n: 'Generational', r: 'legendary', pos: 'skater', d: 'Takes an even bigger share of the scoring the more he outclasses the opposition.' }
   ];
 
+  // ---------------------------------------------------------------- tendencies
+  // Three per player, on top of attributes: how he plays, not how good he is. good: shown green or red.
+  // fx multiplies sim weights: shot (share of shots), goal (share of goals), ast (assist weight), back (his line's
+  // defensive work), hits, pim (penalties); po_goal applies in the playoffs only. Goalies: sv and po_sv add to save %.
+  // Pairs in the same `x` group never go together (a Natural Scorer is never Snakebitten).
+  const TENDENCIES = {
+    shooter: { n: 'Shoots first', good: true, x: 'sp', d: 'Takes a lot more shots.', fx: { shot: 1.35, goal: 1.04 } },
+    passer: { n: 'Pass-first', good: true, x: 'sp2', d: 'Looks for teammates: more assists, fewer shots.', fx: { ast: 1.35, shot: 0.8 } },
+    scorer: { n: 'Natural scorer', good: true, x: 'sc', d: 'Finishes his chances: a bigger share of the goals.', fx: { goal: 1.18 } },
+    snakebit: { n: 'Snakebitten', good: false, x: 'sc', d: 'Can’t buy a goal: a smaller share of the goals.', fx: { goal: 0.85 } },
+    backcheck: { n: 'Backchecker', good: true, x: 'bk', d: 'Hustles back: his line defends better.', fx: { back: 1.15 } },
+    lazy: { n: 'Lazy backchecker', good: false, x: 'bk', d: 'Floats in the neutral zone: his line defends worse.', fx: { back: 0.85 } },
+    hitter: { n: 'Big hitter', good: true, x: 'ht', d: 'Finishes every check: lots more hits.', fx: { hits: 1.6 } },
+    soft: { n: 'Avoids contact', good: false, x: 'ht', d: 'Shies away from the boards: fewer hits.', fx: { hits: 0.5 } },
+    disciplined: { n: 'Disciplined', good: true, x: 'pm', d: 'Rarely takes a penalty.', fx: { pim: 0.55 } },
+    hothead: { n: 'Hothead', good: false, x: 'pm', d: 'Takes bad penalties.', fx: { pim: 1.7 } },
+    clutch: { n: 'Clutch', good: true, x: 'cl', d: 'Scores more in the playoffs.', fx: { po_goal: 1.25 } },
+    choker: { n: 'Disappears in the playoffs', good: false, x: 'cl', d: 'Scores less when it matters.', fx: { po_goal: 0.8 } },
+    biggame: { n: 'Big-game goalie', good: true, x: 'gbg', d: 'Save % +.006 in the playoffs.', g: true, fx: { po_sv: 0.006 } },
+    shaky: { n: 'Shaky under pressure', good: false, x: 'gbg', d: 'Save % −.006 in the playoffs.', g: true, fx: { po_sv: -0.006 } },
+    calm: { n: 'Calm in the crease', good: true, x: 'grb', d: 'Save % +.003.', g: true, fx: { sv: 0.003 } },
+    rebounds: { n: 'Gives up rebounds', good: false, x: 'grb', d: 'Save % −.004.', g: true, fx: { sv: -0.004 } },
+    workhorse: { n: 'Workhorse', good: true, x: 'gwh', d: 'As the starter, the backup plays only 1 night in 5.', g: true, fx: { wh: 1 } },
+    glovehand: { n: 'Quick glove', good: true, x: 'ggl', d: 'Save % +.002.', g: true, fx: { sv: 0.002 } }
+  };
+
   // ---------------------------------------------------------------- boosts
   const BOOSTS = [
     { k: 'sticks', n: 'Hot Sticks', d: '+6 Shooting for every skater', attr: 'shooting', amt: 6, mins: 5, cost: 900 },
@@ -246,15 +272,24 @@
   ];
 
   // ---------------------------------------------------------------- divisions
+  // 15 divisions, Rec League (15) to Elite (1). Ratings, payouts and playoff lengths step up between the old 8
+  // waypoints; seasons are a little shorter than before so the longer climb keeps a similar pace
   const DIVISIONS = [
-    { d: 8, n: 'Rec League', lo: 5, hi: 14, payout: 1.0, games: 20, series: 3 },
-    { d: 7, n: 'Juniors', lo: 11, hi: 21, payout: 1.4, games: 26, series: 3 },
-    { d: 6, n: 'Semi-Pro', lo: 22, hi: 34, payout: 1.9, games: 32, series: 5 },
-    { d: 5, n: 'Minor League', lo: 42, hi: 52, payout: 2.5, games: 40, series: 5 },
-    { d: 4, n: 'Pro', lo: 52, hi: 62, payout: 3.2, games: 48, series: 5 },
-    { d: 3, n: 'Continental', lo: 62, hi: 72, payout: 4, games: 56, series: 7 },
-    { d: 2, n: 'International', lo: 72, hi: 82, payout: 5, games: 68, series: 7 },
-    { d: 1, n: 'Elite', lo: 82, hi: 94, payout: 6.2, games: 84, series: 7 }
+    { d: 15, n: 'Rec League', lo: 5, hi: 14, payout: 1.0, games: 16, series: 3 },
+    { d: 14, n: 'Beer League', lo: 8, hi: 18, payout: 1.2, games: 18, series: 3 },
+    { d: 13, n: 'Juniors B', lo: 11, hi: 21, payout: 1.4, games: 20, series: 3 },
+    { d: 12, n: 'Juniors A', lo: 17, hi: 28, payout: 1.65, games: 22, series: 3 },
+    { d: 11, n: 'Major Junior', lo: 22, hi: 34, payout: 1.9, games: 24, series: 5 },
+    { d: 10, n: 'College', lo: 32, hi: 43, payout: 2.2, games: 28, series: 5 },
+    { d: 9, n: 'Semi-Pro', lo: 42, hi: 52, payout: 2.5, games: 30, series: 5 },
+    { d: 8, n: 'Minor League B', lo: 47, hi: 57, payout: 2.85, games: 34, series: 5 },
+    { d: 7, n: 'Minor League A', lo: 52, hi: 62, payout: 3.2, games: 36, series: 5 },
+    { d: 6, n: 'Pro B', lo: 57, hi: 67, payout: 3.6, games: 40, series: 5 },
+    { d: 5, n: 'Pro', lo: 62, hi: 72, payout: 4.0, games: 42, series: 7 },
+    { d: 4, n: 'Continental', lo: 67, hi: 77, payout: 4.5, games: 46, series: 7 },
+    { d: 3, n: 'International', lo: 72, hi: 82, payout: 5.0, games: 52, series: 7 },
+    { d: 2, n: 'World League', lo: 77, hi: 88, payout: 5.6, games: 56, series: 7 },
+    { d: 1, n: 'Elite', lo: 82, hi: 94, payout: 6.2, games: 64, series: 7 }
   ];
 
   const CRESTS = ['shield', 'circle', 'diamond', 'star', 'wing', 'anchor', 'bolt', 'leaf', 'bear', 'wolf', 'hawk', 'flame', 'crown', 'mountain', 'sticks', 'wave'];
@@ -295,7 +330,7 @@
     { k: 'equip', n: 'Equipment Room', ic: 'gear', per: 5, d: '{v}% of gear drops come one rarity higher' }
   ];
   const TUNING = {
-    gameIntervalSec: 30, playoffGameSec: 36,
+    gameIntervalSec: 20, playoffGameSec: 24,
     comboDecayMs: 1200, comboMaxHits: 200, comboMaxMult: 5,
     starExp: 1.6, mismatchExp: 0.45, mismatchLo: 0.75, mismatchHi: 1.8, gammaShape: 6,
     offlineCapBase: 10, offlineCapMax: 40,
@@ -307,7 +342,7 @@
   G.DATA = {
     NATIONS, NAMES, CITY_BY_NAT, CITIES, MASCOTS, RARITY, RIDX, GOLD, FACILITIES, GOALIE_SHARD_MULT, PROMO_CAP,
     SKATER_ATTRS, GOALIE_ATTRS, ATTR_LABEL, OVR_W, TYPES, TYPE_ODDS,
-    GEAR_SLOTS, GEAR_BANDS, XFACTORS, BOOSTS, DIVISIONS, CRESTS, PATTERNS,
+    GEAR_SLOTS, GEAR_BANDS, XFACTORS, BOOSTS, DIVISIONS, TENDENCIES, CRESTS, PATTERNS,
     ACHIEVEMENTS, TROPHY_BONUS, TUNING
   };
 })(window.BK = window.BK || {});

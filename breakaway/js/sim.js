@@ -31,12 +31,14 @@
       // playoff hockey shortens the bench: top lines play more, the fourth line barely
       let w = LINE_W[i] * (opts.playoff ? PO_LINE[i] : 1);
       if (ps.some(p => hasXF(p, 'franchise'))) w = Math.max(w, LINE_W[0]);
-      const dshare = 0.5 * avg(ps, 'defense') + 0.3 * avg(ps, 'iq') + 0.2 * avg(ps, 'skating');
+      // backcheckers lift a line's defensive work, lazy forwards drag it down
+      const back = ps.reduce((s, p) => s + M.tfx(p, 'back'), 0) / ps.length;
+      const dshare = (0.5 * avg(ps, 'defense') + 0.3 * avg(ps, 'iq') + 0.2 * avg(ps, 'skating')) * back;
       return { ids, ps, o, dfw: dshare, chem: c, w, idx: i };
     });
     const pairs = team.lineup.pairs.map((ids, j) => {
       const ps = ids.map(id => byId[id]);
-      const d = 0.34 * avg(ps, 'defense') + 0.24 * avg(ps, 'iq') + 0.22 * avg(ps, 'skating') + 0.20 * avg(ps, 'grit');
+      const d = (0.34 * avg(ps, 'defense') + 0.24 * avg(ps, 'iq') + 0.22 * avg(ps, 'skating') + 0.20 * avg(ps, 'grit')) * (ps.reduce((s, p) => s + M.tfx(p, 'back'), 0) / ps.length);
       const off = 0.35 * avg(ps, 'passing') + 0.35 * avg(ps, 'shooting') + 0.3 * avg(ps, 'skating');
       const c = M.chemInfo(ids, chem, ps).mult;
       return { ids, ps, d, off, chem: c, w: PAIR_W[j] * (opts.playoff ? PO_PAIR[j] : 1), idx: j, shutdown: ps.some(p => hasXF(p, 'shutdown')) };
@@ -56,7 +58,7 @@
 
     return {
       name: team.name, abbr: team.abbr, user: true, byId,
-      O, D: Dr, G: grat, lines, pairs, goalie: gp,
+      O, D: Dr, G: grat, lines, pairs, goalie: gp, playoff: !!opts.playoff, gsv: M.tfx(gp, 'sv', !!opts.playoff),
       gloveflash: hasXF(gp, 'gloveflash'),
       shutdown: pairs.some(p => p.shutdown)
     };
@@ -135,6 +137,7 @@
     // goaltending swings hard: a goalie well above the division carries a team
     let psave = 0.900 + 0.0020 * (opp.G - ref) - 0.0010 * (O - ref);
     if (opp.gloveflash) psave += 0.006;
+    psave += opp.gsv || 0;   // goalie tendencies
     psave = M.clamp(psave, 0.83, 0.965);
     return { self, opp, O, shots, psave, ref, stats: self.user ? {} : null, list: self.user ? [] : null, goalRate: 1 - psave };
   }
@@ -146,7 +149,7 @@
   function discipline(T) {
     if (!T.user) return 1;
     const sk = T.lines.reduce((a, l) => a.concat(l.ps), []).concat(T.pairs.reduce((a, p) => a.concat(p.ps), []));
-    const f = sk.reduce((s, p) => s + M.typeOf(p).pim * (0.7 + M.eff(p, 'grit') / 100), 0) / sk.length;
+    const f = sk.reduce((s, p) => s + M.typeOf(p).pim * M.tfx(p, 'pim') * (0.7 + M.eff(p, 'grit') / 100), 0) / sk.length;
     return M.clamp(f, 0.6, 1.8);
   }
   // each period: penalties for both sides, each one a two-minute power play for the other team.
@@ -160,7 +163,7 @@
         const pen = { per, s: sk, g: null };
         if (pk.self.user) {
           const ps = pk.self.lines.reduce((a, l) => a.concat(l.ps), []).concat(pk.self.pairs.reduce((a, p) => a.concat(p.ps), []));
-          const who = ps[M.weightedIndex(ps.map(p => T(p).pim * (0.6 + M.eff(p, 'grit') / 60)))];
+          const who = ps[M.weightedIndex(ps.map(p => T(p).pim * M.tfx(p, 'pim') * (0.6 + M.eff(p, 'grit') / 60)))];
           row(pk.stats, who.id).pim += 2; pen.pid = who.id;
         }
         const pGoal = M.clamp(0.2 * Math.pow(pp.O / Math.max(4, pp.opp.D), 0.6) * ((1 - pp.psave) / 0.095), 0.06, 0.42);
@@ -198,8 +201,8 @@
 
     // shots: three in four from forwards
     for (let s = 0; s < shots; s++) {
-      if (M.rand() < 0.75) { const l = self.lines[M.weightedIndex(lw)]; row(st, l.ids[M.weightedIndex(usage(l, oppD, Tn))]).s++; }
-      else { const pr = self.pairs[M.weightedIndex(pw)]; row(st, pr.ids[M.weightedIndex(pr.ps.map(p => Math.max(1, M.eff(p, 'shooting')) * T(p).goal))]).s++; }
+      if (M.rand() < 0.75) { const l = self.lines[M.weightedIndex(lw)]; row(st, l.ids[M.weightedIndex(usage(l, oppD, Tn, self.playoff).map((u, i) => u * M.tfx(l.ps[i], 'shot')))]).s++; }
+      else { const pr = self.pairs[M.weightedIndex(pw)]; row(st, pr.ids[M.weightedIndex(pr.ps.map(p => Math.max(1, M.eff(p, 'shooting')) * T(p).goal * M.tfx(p, 'shot')))]).s++; }
     }
 
     for (let g = 0; g < goals; g++) {
@@ -208,8 +211,8 @@
       // about one goal in six comes from the blue line, more with offensive defensemen
       const dShare = M.clamp(0.13 * pair.ps.reduce((s, p) => s + T(p).goal, 0) / 2 * (pair.off / Math.max(5, line.o)), 0.05, 0.32);
       let scorer;
-      if (M.rand() < dShare) scorer = pair.ps[M.weightedIndex(pair.ps.map(p => Math.max(1, M.eff(p, 'shooting')) * T(p).goal))];
-      else scorer = line.ps[M.weightedIndex(usage(line, oppD, Tn))];
+      if (M.rand() < dShare) scorer = pair.ps[M.weightedIndex(pair.ps.map(p => Math.max(1, M.eff(p, 'shooting')) * T(p).goal * M.tfx(p, 'goal', self.playoff)))];
+      else scorer = line.ps[M.weightedIndex(usage(line, oppD, Tn, self.playoff))];
       row(st, scorer.id).g++;
       const onIce = line.ps.concat(pair.ps);
       if (tag !== 'pp') onIce.forEach(p => row(st, p.id).pm++);
@@ -219,7 +222,7 @@
       if (M.rand() < 0.88) {
         const mates = onIce.filter(p => p !== scorer);
         const qb = mates.find(p => hasXF(p, 'playmaker'));
-        const wts = ps => ps.map(p => Math.pow(Math.max(1, M.eff(p, 'passing') + 0.4 * M.eff(p, 'iq')), 1.3) * T(p).ast * (line.ps.indexOf(p) >= 0 ? 1.4 : 1));
+        const wts = ps => ps.map(p => Math.pow(Math.max(1, M.eff(p, 'passing') + 0.4 * M.eff(p, 'iq')), 1.3) * T(p).ast * M.tfx(p, 'ast') * (line.ps.indexOf(p) >= 0 ? 1.4 : 1));
         a1 = qb || mates[M.weightedIndex(wts(mates))];
         row(st, a1.id).a++;
         if (M.rand() < 0.72) {
@@ -237,7 +240,7 @@
     const self = side.self, st = side.stats;
     const sk = self.lines.reduce((a, l) => a.concat(l.ps), []).concat(self.pairs.reduce((a, p) => a.concat(p.ps), []));
     const nh = M.ri(10, 22);
-    for (let i = 0; i < nh; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'grit')), 1.2) * T(x).hits))].id).hits++;
+    for (let i = 0; i < nh; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'grit')), 1.2) * T(x).hits * M.tfx(x, 'hits')))].id).hits++;
     const nb = M.ri(6, 15);
     for (let i = 0; i < nb; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'defense')), 1.2) * T(x).blk * (x.pos === 'D' ? 1.6 : 1)))].id).blk++;
     sk.forEach(p => {
@@ -248,14 +251,14 @@
   }
 
   // the star share: rating^starExp * mismatch * Gamma noise * type scoring
-  function usage(line, oppD, Tn) {
+  function usage(line, oppD, Tn, po) {
     return line.ps.map(p => {
       const R = Math.max(1, M.overall(p));
       let mism = Math.pow(R / Math.max(6, oppD), hasXF(p, 'generational') ? Tn.mismatchExp * 1.6 : Tn.mismatchExp);
       mism = M.clamp(mism, Tn.mismatchLo, Tn.mismatchHi);
       let u = Math.pow(R, Tn.starExp) * mism * M.gammaUnit(Tn.gammaShape) * T(p).goal;
       if (hasXF(p, 'heavyshot')) u *= 1.08;
-      return u;
+      return u * M.tfx(p, 'goal', po);
     });
   }
 
