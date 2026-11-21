@@ -127,7 +127,7 @@
       '<div class="r"><b id="ckPass">+' + fmt(ST.passiveRate()) + '/s</b><i>passive, from team overall</i></div></div>' +
       '<div class="ck-arena" id="ckArena"><button class="ck-puck" id="ckPuck" aria-label="Tap for pucks"><span class="ck-ring"></span>' + ic('puck', 92) + '</button></div>' +
       '<div class="ck-combo"><div><b id="ckCombo">0</b><i>combo</i></div><div class="ck-bar"><i id="ckDecay"></i></div><div class="r"><b id="ckMult">1.0×</b><i>multiplier</i></div></div>' +
-      '<div class="ck-goal" id="ckGoal">' + goalHTML() + '</div>' +
+      '<div class="ck-goal" id="ckGoal">' + goalHTML() + '</div>' + '<div class="ck-goal wk" id="ckWeek">' + weekHTML() + '</div>' +
       (rush ? '<div class="boost-on">' + ic('bolt', 14) + ' Puck Rush: double income</div>' : (st.boosts.rush ? '<button class="btn sm" data-boost="rush">' + ic('bolt', 14) + ' Use Puck Rush (' + st.boosts.rush + ')</button>' : '')) +
       '</section>';
     h += '<div class="note c">Team overall ' + Math.round(ST.teamOvr()) + ' sets tap and passive income. Upgrade players and both go up. A golden puck shows up now and then: tap it for 25 taps’ worth.</div>';
@@ -168,6 +168,10 @@
     ckRaf = requestAnimationFrame(frame);
   }
   // daily practice goals under the clicker
+  function weekHTML() {
+    const w = ST.tapWeek(), G = ST.WEEK_GOAL;
+    return '<div class="cg-h"><b>' + (w.done ? 'Weekly goal done · resets Monday' : 'Weekly goal: ' + fmt(w.n) + ' / ' + fmt(G) + ' taps') + '</b><i>' + (w.done ? 'nice work' : '2nd-round pick, shards and gear') + '</i></div><div class="cg-bar"><i style="width:' + Math.min(100, 100 * w.n / G).toFixed(1) + '%"></i></div>';
+  }
   function goalHTML() {
     const t = ST.tapDay(), G = ST.TAP_GOALS, next = G[t.got], prev = t.got ? G[t.got - 1].n : 0;
     if (!next) { const E = ST.TAP_DROP_EVERY, past = t.n - G[G.length - 1].n, into = past % E; return '<div class="cg-h"><b>Goals done · bonus drop: ' + into + ' / ' + E + ' taps</b><i>gear, a pick, shards or a rescout token</i></div><div class="cg-bar"><i style="width:' + (100 * into / E).toFixed(1) + '%"></i></div>'; }
@@ -183,6 +187,7 @@
     const out = isGolden ? P.tapGolden() : P.tap(!!held);
     if (!out.v) return;
     const cg = $('#ckGoal'); if (cg) cg.innerHTML = goalHTML();
+    const cw = $('#ckWeek'); if (cw) cw.innerHTML = weekHTML();
     if (isGolden && golden) { golden.remove(); golden = null; goldenAt = performance.now() + 18000 + Math.random() * 14000; }
     const pop = document.createElement('div');
     pop.className = 'ckpop' + (isGolden ? ' gold' : '');
@@ -414,14 +419,9 @@
     h += sh(ic('swap', 18) + ' Trade desk', '<span class="sec-note">' + tradeN + ' tradeable on the bench</span>');
     h += '<section class="panel tradein"><div><b>Trade in players</b><i>Pick any bench players, then choose picks, gear, shards or pucks. Better and rarer players are worth more.</i></div>' +
       '<button class="btn primary sm" data-act="tradein"' + (tradeN ? '' : ' disabled') + '>Choose players</button></section>';
-    h += '<section class="panel flush trades">' + ST.TRADES.map((t, i) => { if (!t.legend) return '';
-      const all = bench.filter(p => p.rarity === t.r), have = all.filter(ST.tradeable).length, rc = A.rarityColor(t.r);
-      const lockN = all.length - have;
-      return '<div class="tr"><span class="tr-in">' + Array.from({ length: t.n }, () => '<i style="background:' + rc + '"></i>').join('') + '</span>' +
-        '<span class="tr-t"><b>' + t.n + ' ' + D.RARITY[D.RIDX[t.r]].n.toLowerCase() + ' player' + (t.n > 1 ? 's' : '') + '</b><i>' + have + ' tradeable on the bench' + (lockN ? ' · ' + lockN + ' locked' : '') + '</i></span>' +
-        ic('chev', 14, 'dimc') + '<span class="tr-out"' + (t.legend ? ' style="color:' + rc + '"' : '') + '>' + (t.legend ? '1 Legend' : ST.ord(t.round)) + '</span>' +
-        '<span class="tr-b"><button class="buy" data-trade="' + i + '"' + (have >= t.n ? '' : ' disabled') + '>Trade</button>' + (!t.legend && have >= t.n * 2 ? '<button class="buy" data-batch="' + i + '">All ×' + Math.floor(have / t.n) + '</button>' : '') + '</span></div>';
-    }).join('') + '</section><div class="note">Three Legendaries buy one Legendary of the country and position you pick. Only bench players can be traded; lock a player on his card to keep him off the desk. Gear and traits go back to your locker.</div>';
+    const li = ST.TRADES.findIndex(t => t.legend), lAll = bench.filter(p => p.rarity === 'legendary'), lHave = lAll.filter(ST.tradeable).length;
+    h += '<section class="panel tradein"><div><b>Three for one Legendary</b><i>Trade 3 Legendary bench players for a new Legendary of the country and position you choose. You have ' + lHave + ' tradeable' + (lAll.length > lHave ? ' (' + (lAll.length - lHave) + ' locked)' : '') + '.</i></div>' +
+      '<button class="btn sm" data-trade="' + li + '"' + (lHave >= 3 ? '' : ' disabled') + '>Choose 3</button></section><div class="note">Only bench players can be traded; lock a player on his card to keep him off the desk. Gear and traits go back to your locker.</div>';
 
     h += sh(A.gearIcon('stick', 'currentColor', 18) + ' Spare gear: salvage and fuse', '<span class="sec-note">' + st.gear.length + ' spare pieces</span>');
     const as = st.autoScrap == null ? -1 : st.autoScrap;
@@ -478,7 +478,8 @@
       '<button class="btn sm" data-farescout="ad"' + (rl ? ' disabled' : '') + '>Watch ad</button>' + (tk ? '<button class="btn sm primary" data-farescout="token">Use token</button>' : '') + '</div>';
 
     const cap = ST.maxRarity();
-    h += sh(ic('token', 18) + ' Draft picks', ST.pickCount() > 1 ? '<button class="btn sm primary" data-act="draftall">' + ic('token', 14) + ' Draft all ' + ST.pickCount() + '</button>' : '<span class="sec-note">1st-round Legendary chance: ' + ST.pickOdds(1)[4] + '%</span>');
+    h += sh(ic('token', 18) + ' Draft picks', ST.pickCount() > 1 ? '<button class="btn sm primary" data-act="draftall">' + ic('token', 14) + ' Auto-draft ' + ST.pickCount() + '</button>' : '<span class="sec-note">1st-round Legendary chance: ' + ST.pickOdds(1)[4] + '%</span>');
+    if (st.board) h += '<section class="panel tradein"><div><b>Your ' + ST.ord(st.board.round) + '-round board is open</b><i>Five prospects are waiting. Pick one before drafting again.</i></div><button class="btn primary sm" data-act="board">Open board</button></section>';
     h += '<section class="panel flush draft">' + [1, 2, 3, 4, 5, 6, 7].map(r => {
       const n = (st.picks && st.picks[r]) || 0, odds = ST.pickOdds(r);
       return '<div class="dp' + (n ? '' : ' none') + '"><span class="dp-r"><b>' + r + '</b><i>' + ST.ord(r).replace(/\d+/, '') + '</i></span>' +
@@ -534,13 +535,6 @@
     const dd = ST.dailyState();
     h += '<button class="dailyrow' + (dd.ready ? ' ready' : '') + '" data-act="daily">' + ic('season', 22) + '<span><b>Daily rewards</b><i>' +
       (dd.ready ? 'Day ' + dd.day + ' is ready to claim' : 'Day ' + dd.claimed + ' of 7 claimed · next one tomorrow') + '</i></span>' + ic('chev', 16, 'dimc') + '</button>';
-    h += sh(ic('trophy', 18) + ' Franchise achievements', '<span class="sec-note">Never reset · pick Hall of Fame gear or a trait</span>');
-    h += '<section class="panel flush fach">' + ST.FACH.map(a => {
-      const got = (st.fach && st.fach[a.k]) || 0, need = ST.fachNeed(a, got), v = ST.fachValue(a.k), done = need == null, can = !done && v >= need;
-      return '<div class="fa-r"><span class="fa-ic">' + ic('trophy', 20) + '</span><span class="fa-t"><b>' + a.n + ' <em>' + (a.repeat ? '×' + got : got + '/' + a.tiers.length) + '</em></b><i>' + a.d + ' · ' + fmt(v) + (done ? '' : ' / ' + fmt(need)) + '</i>' +
-        '<span class="cg-bar"><i style="width:' + (done ? 100 : Math.min(100, 100 * v / need)) + '%"></i></span></span>' +
-        (done ? '<span class="fa-done">' + ic('check', 16) + '</span>' : '<button class="buy' + (can ? ' primary' : '') + '" data-fach="' + a.k + '"' + (can ? '' : ' disabled') + '>Claim</button>') + '</div>';
-    }).join('') + '</section>';
     const ready = st.achClaim || [];
     h += sh(ic('medal', 18) + ' Ready to claim', '<span class="sec-note">' + ready.length + ' waiting</span>');
     h += ready.length ? '<section class="panel flush claims">' + ready.map((c, i) => {
@@ -555,6 +549,13 @@
         '<i>' + (done ? 'Complete' : 'Next: ' + a.tiers[lv]) + '</i><span class="ach-pips">' + a.tiers.map((t, i) => '<em class="' + (i < lv ? 'on' : '') + '"></em>').join('') + '</span></div>';
     });
     h += '</div>';
+    h += sh(ic('trophy', 18) + ' Franchise achievements', '<span class="sec-note">Never reset · pick Hall of Fame gear or a trait</span>');
+    h += '<section class="panel flush fach">' + ST.FACH.map(a => {
+      const got = (st.fach && st.fach[a.k]) || 0, need = ST.fachNeed(a, got), v = ST.fachValue(a.k), done = need == null, can = !done && v >= need;
+      return '<div class="fa-r"><span class="fa-ic">' + ic('trophy', 20) + '</span><span class="fa-t"><b>' + a.n + ' <em>' + (a.repeat ? '×' + got : got + '/' + a.tiers.length) + '</em></b><i>' + a.d + ' · ' + fmt(v) + (done ? '' : ' / ' + fmt(need)) + '</i>' +
+        '<span class="cg-bar"><i style="width:' + (done ? 100 : Math.min(100, 100 * v / need)) + '%"></i></span></span>' +
+        (done ? '<span class="fa-done">' + ic('check', 16) + '</span>' : '<button class="buy' + (can ? ' primary' : '') + '" data-fach="' + a.k + '"' + (can ? '' : ' disabled') + '>Claim</button>') + '</div>';
+    }).join('') + '</section>';
 
     const won = [];
     st.history.forEach(s => (s.awards || []).forEach(a => { if (a.winner.mine) won.push({ a, s }); }));
@@ -931,8 +932,28 @@
         '<em class="' + (hot ? 'hot' : '') + '">' + (r.topPct >= 50 ? 'Bottom ' + Math.max(1, Math.round(100 - r.topPct)) + '%' : 'Top ' + r.topPct + '%') + ' for the round</em></span>' +
         '<span class="dc-o"><span class="rpill" style="--rc:' + rc + '">' + rname(p) + '</span>' + ovr(p) + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="note">Batch picks skip the rescout. Draft one at a time if you want the ad rescout.</div>' +
+    h += '<div class="note">Auto-draft lets your scouts choose from each board of five using what they can see. Draft one at a time to choose yourself.</div>' +
       '<button class="btn primary" data-act="tobench">See the bench</button>';
+    openModal(h);
+  }
+  // draft board: five prospects, see what your scouts can see, take one
+  function boardSheet() {
+    const st = ST.get(), b = st.board; if (!b) return;
+    const si = ST.scoutInfo(), q = '<b class="unk">?</b>';
+    const nextTip = !si.type ? 'Scouting Dept Lv 1 reveals player type.' : !si.rarity ? 'Scouting Dept Lv 3 reveals rarity.' : si.range == null ? 'Scouting Dept Lv 5 shows an Overall range.' : si.range ? 'Scouting Dept Lv ' + (si.range === 8 ? 8 : 11) + ' narrows the range' + (si.range === 4 ? ' to the exact Overall.' : '.') : 'Your scouts see everything.';
+    let h = sheetHead(ST.ord(b.round) + '-round pick', 'Choose one of five. Your scouts (Lv ' + si.lvl + ') can see ' + ['position', 'country'].concat(si.type ? ['type'] : [], si.rarity ? ['rarity'] : [], si.range != null ? [si.range ? 'an Overall range' : 'exact Overall'] : []).join(', ') + '.', 'data-act="close"');
+    h += '<div class="board">' + b.list.map((p, i) => {
+      const rc = si.rarity ? rcol(p) : '#5d6b7d';
+      const ov = si.range == null ? q : si.range ? '<b>' + Math.max(1, p.est - si.range) + '–' + (p.est + si.range) + '</b>' : '<b>' + M.overall(p) + '</b>';
+      return '<div class="bd-r"><span class="bd-f">' + A.portrait(p, { c1: '#3c4a5e', c2: '#d6dde6', c3: '#111' }, 46, rc) + '</span>' +
+        '<span class="bd-t"><b>' + esc(p.name) + '</b><i>' + p.pos + ' · ' + flag(p.nat, 13) + ' ' + esc(natOf(p).n) + '</i>' +
+        '<span class="bd-tags">' + (si.type ? '<span class="tpill">' + esc(M.typeOf(p).n) + '</span>' : '<span class="tpill unk">Type ?</span>') +
+        (si.rarity ? '<span class="rpill" style="--rc:' + rc + '">' + rname(p) + '</span>' : '<span class="tpill unk">Rarity ?</span>') + '</span></span>' +
+        '<span class="bd-o">' + ov + '<i>ovr</i></span><button class="btn sm primary" data-board="' + i + '">Draft</button></div>';
+    }).join('') + '</div>';
+    h += '<div class="note">' + esc(nextTip) + ' Upgrade it on the Office tab.</div>';
+    h += b.rescouted ? '<div class="muted-c">Board rescouted. These five are final.</div>'
+      : '<button class="btn ghost wide" data-act="boardrescout">▶ Watch an ad for a new board of five</button>';
     openModal(h);
   }
   function draftReveal(res) {
@@ -1249,6 +1270,7 @@
     jerseySVG, crestSVG, KIT_PRESETS, setLook, resetLook, get lookDraft() { return lookDraft; }, pushFeed, stopPractice, startRound, refreshShop, queueCard, maybeSheets, kitSheet, kitPreview, renameSheet,
     coachEditSheet, coachEdit, coachSave,
     tradeInSheet, tinToggle, tinAll, tinClear, tinKindSet, tinDo,
+    boardSheet,
     tradeSheet, fachSheet, resetTuning, draftReveal, draftAllSheet, awaySheet, prestigeSheet, togglePrest, get prestSel() { return prestSel; }, dailySheet, adBreak, toggleTrade, autoTrade, clearTrade, setTradePos, doTrade, clickTap, holdState, locked, arming, modalOpen,
     get kitDraft() { return kitDraft; }, set kitDraft(v) { kitDraft = v; },
     get tab() { return tab; },

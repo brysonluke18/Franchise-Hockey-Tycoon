@@ -257,7 +257,7 @@
     { d: 1, n: 'Elite', lo: 82, hi: 94, payout: 6.2, games: 84, series: 7 }
   ];
 
-  const CRESTS = ['shield', 'circle', 'diamond', 'star', 'wing', 'anchor', 'bolt', 'leaf', 'bear', 'wolf', 'hawk', 'flame'];
+  const CRESTS = ['shield', 'circle', 'diamond', 'star', 'wing', 'anchor', 'bolt', 'leaf', 'bear', 'wolf', 'hawk', 'flame', 'crown', 'mountain', 'sticks', 'wave'];
   const PATTERNS = ['plain', 'yoke', 'double', 'shoulder'];
 
   // ---------------------------------------------------------------- achievements (claimed by hand on the Trophies tab)
@@ -291,7 +291,7 @@
   const FACILITIES = [
     { k: 'train', n: 'Training Center', ic: 'dumbbell', per: 3, d: 'Player upgrades cost {v}% less' },
     { k: 'arena', n: 'Arena', ic: 'season', per: 6, d: 'Tap and passive income +{v}%' },
-    { k: 'scout', n: 'Scouting Dept', ic: 'token', per: 1, d: 'Drafted and free-agent players rate +{v}' },
+    { k: 'scout', n: 'Scouting Dept', ic: 'token', per: 1, d: 'Drafted and free-agent players rate +{v}; scouts see more on draft boards (type at Lv 1, rarity at 3, Overall range at 5, exact at 11)' },
     { k: 'equip', n: 'Equipment Room', ic: 'gear', per: 5, d: '{v}% of gear drops come one rarity higher' }
   ];
   const TUNING = {

@@ -189,7 +189,8 @@
     if ((x = el('[data-tpos]'))) { UI.setTradePos(+x.dataset.ti, x.dataset.tpos); return; }
     if ((x = el('[data-tsel]'))) { UI.toggleTrade(+x.dataset.ti, x.dataset.tsel); return; }
     if ((x = el('[data-dotrade]'))) { UI.doTrade(+x.dataset.dotrade); return; }
-    if ((x = el('[data-draft]'))) { const r = ST.draft(+x.dataset.draft); if (r) { UI.render(); UI.draftReveal(r); } return; }
+    if ((x = el('[data-draft]'))) { if (ST.openBoard(+x.dataset.draft)) { UI.render(); UI.boardSheet(); } return; }
+    if ((x = el('[data-board]'))) { const r = ST.chooseBoard(+x.dataset.board); if (r) { UI.render(); UI.draftReveal(r); } return; }
     if ((x = el('[data-combine]'))) { if (ST.combinePicks(+x.dataset.combine)) UI.render(); return; }
     if ((x = el('[data-fa]'))) { if (ST.signAgent(+x.dataset.fa)) UI.render(); return; }
     if ((x = el('[data-salvall]'))) { ST.salvageAll(x.dataset.salvall); UI.render(); return; }
@@ -234,7 +235,9 @@
         case 'demo': if (!st.dev) return; ST.setDemo(!st.demo); st.lastTick = Date.now(); live = null; UI.render(); return;
         case 'rescout': { const pid = x.dataset.pid, rd = +x.dataset.round; UI.adBreak(3, () => { const r = ST.rescout(pid, rd); UI.render(); if (r) UI.draftReveal(r); else UI.closeModal(); }); return; }
         case 'devmode': st.dev = !st.dev; if (!st.dev) { UI.resetTuning(); if (st.demo) { ST.setDemo(false); st.lastTick = Date.now(); live = null; } } ST.save(); UI.tuneSheet(); UI.render(); return;
-        case 'draftall': { const out = []; for (let r = 1; r <= 7; r++) while (st.picks && st.picks[r] > 0) { const d = ST.draft(r); if (!d) break; out.push(d); } UI.render(); if (out.length) UI.draftAllSheet(out); return; }
+        case 'draftall': { const out = []; if (st.board) { const d0 = ST.chooseBoard(ST.scoutPick(st.board)); if (d0) out.push(d0); } for (let r = 1; r <= 7; r++) while (st.picks && st.picks[r] > 0) { const d = ST.autoDraft(r); if (!d) break; out.push(d); } UI.render(); if (out.length) UI.draftAllSheet(out); return; }
+        case 'board': UI.boardSheet(); return;
+        case 'boardrescout': UI.adBreak(3, () => { ST.rescoutBoard(); UI.boardSheet(); }); return;
         case 'prestige': UI.prestigeSheet(); return;
         case 'doprestige':
           if (x.dataset.sure) { if (ST.prestige(UI.prestSel)) { UI.closeModal(); const tb = document.querySelector('[data-tab=team]'); if (tb) tb.click(); else UI.render(); UI.header(); } }

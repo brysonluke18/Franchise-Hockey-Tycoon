@@ -159,10 +159,24 @@
     return out;
   }
 
+  // every league team gets its own crest (never the player's) and colour, so standings never show look-alikes
+  function assignBadges() {
+    const A = G.ART; if (!A || !A.setBadges) return;
+    const names = st.standings.filter(t => t.ai).map(t => t.name);
+    const have = st.badges && names.every(n => st.badges[n]);
+    if (!have) {
+      const crests = D.CRESTS.filter(c => c !== st.team.crest), cols = A.BADGE.slice();
+      const order = names.slice().sort((a, b) => A.hash(a) - A.hash(b)), off = A.hash(order.join('|'));
+      st.badges = {};
+      order.forEach((n, i) => { st.badges[n] = { crest: crests[(i + off) % crests.length], color: cols[(i + (off >> 3)) % cols.length] }; });
+    }
+    A.setBadges(st.badges);
+  }
   function startSeason() {
     const d = div();
     const ai = aiTeams();
     st.standings = [{ ai: false, id: 'me', name: st.team.city + ' ' + st.team.name, abbr: st.team.abbr, w: 0, l: 0, otl: 0, gf: 0, ga: 0 }].concat(ai);
+    st.badges = null; assignBadges();
     st.schedule = [];
     for (let i = 0; i < d.games; i++) st.schedule.push(ai[i % 15].id);
     shuffle(st.schedule);
@@ -962,6 +976,54 @@
     return { p, round, odds, ri, topPct: Math.max(0.5, Math.round(1000 * atLeast / 200) / 10) };
   }
   // one ad-funded second look per pick: the first player leaves, a fresh one is drafted at the same odds
+  // ---------------------------------------------------------------- draft boards
+  // A pick opens a board of five prospects; you choose one. Country and position are always known; better
+  // scouting (the Scouting Dept) reveals type, then rarity, then an Overall range that narrows to the exact number.
+  function scoutInfo() {
+    const L = facLvl('scout');
+    return { lvl: L, type: L >= 1, rarity: L >= 3, range: L >= 11 ? 0 : L >= 8 ? 4 : L >= 5 ? 8 : null };
+  }
+  function prospect(round, used) {
+    const odds = pickOdds(round), ri = M.weightedIndex(odds);
+    const pos = M.rand() < 0.4 ? needPos() : M.pick(['LW', 'C', 'RW', 'LW', 'C', 'RW', 'D', 'D', 'D', 'G']);
+    const p = M.makePlayer(pos, D.RARITY[ri].k, draftTarget(ri, round), null, { avoid: used });
+    p.est = M.overall(p) + M.ri(-3, 3);   // the scouts' read, centre of the shown range
+    return p;
+  }
+  function openBoard(round) {
+    if (st.board) return st.board;
+    if (!st.picks || !st.picks[round]) return null;
+    st.picks[round]--;
+    const used = nameSet(), list = [];
+    for (let i = 0; i < 5; i++) list.push(prospect(round, used));
+    st.board = { round, list, rescouted: false };
+    save(); emit('roster'); return st.board;
+  }
+  function rescoutBoard() {
+    const b = st.board; if (!b || b.rescouted) return null;
+    const used = nameSet(); b.list = []; for (let i = 0; i < 5; i++) b.list.push(prospect(b.round, used));
+    b.rescouted = true; save(); return b;
+  }
+  // the pick the scouts would make with what they can see: exact or estimated Overall, else rarity, else the team's need
+  function scoutPick(b) {
+    const si = scoutInfo(), need = needPos();
+    const score = p => si.range != null ? p.est : si.rarity ? D.RIDX[p.rarity] * 10 + (p.pos === need ? 1 : 0) : (p.pos === need ? 1 : 0) + M.rand() * 0.5;
+    let best = 0; b.list.forEach((p, i) => { if (score(p) > score(b.list[best])) best = i; });
+    return best;
+  }
+  function chooseBoard(i) {
+    const b = st.board; if (!b || !b.list[i]) return null;
+    const p = b.list[i], round = b.round, odds = pickOdds(round);
+    delete p.est;
+    p.num = freeNumber(); p.how = 'Drafted · ' + ord(round) + ' round, season ' + st.season; p.acq = st.season;
+    st.team.roster.push(p); st.board = null;
+    // luck is judged on Overall against 200 possible picks from this round
+    const ovr = M.overall(p); let atLeast = 0;
+    for (let k = 0; k < 200; k++) { const r2 = M.weightedIndex(odds), qo = M.overall(M.makePlayer(p.pos, D.RARITY[r2].k, draftTarget(r2, round), null, {})); if (qo > ovr) atLeast++; else if (qo === ovr) atLeast += 0.5; }
+    save(); emit('roster');
+    return { p, round, odds, ri: D.RIDX[p.rarity], topPct: Math.max(0.5, Math.round(1000 * atLeast / 200) / 10), rescouted: true };
+  }
+  function autoDraft(round) { if (st.board ? false : !openBoard(round)) return null; return chooseBoard(scoutPick(st.board)); }
   function rescout(pid, round) {
     const p = byId(pid);
     if (!p || lineupIds().indexOf(pid) >= 0) return null;
@@ -1075,12 +1137,24 @@
     toast('Two ' + ord(round) + '-rounders became a ' + ord(round - 1) + '-round pick', 'promo');
     save(); return true;
   }
-  const FA_MIN = [4, 8, 15, 30, 60];   // minutes of passive income per rarity
+  const FA_MIN = [8, 16, 30, 60, 60];   // minutes of passive income per rarity
+  const FA_TAPS = [800, 2000, 4500, 10000, 10000];   // taps at a full 5x combo per rarity
   // what the team seems to want: the weakest starter's position, a player who fixes a unit's bad fit
   // (two of one type, two OFDs or DFDs), and the country most of the lineup comes from
+  // the position group that is weakest on average over the top three lines, top three pairs and the starter
+  // (not just the single weakest player, who might sit on an otherwise strong wing)
+  function thinnestPos() {
+    const L = st.team.lineup, g = { LW: [], C: [], RW: [], D: [], G: [] };
+    L.lines.slice(0, 3).forEach(l => l.forEach((id, j) => { const p = byId(id); if (p) g[['LW', 'C', 'RW'][j]].push(M.overall(p)); }));
+    L.pairs.forEach(pr => pr.forEach(id => { const p = byId(id); if (p) g.D.push(M.overall(p)); }));
+    const gp = byId(L.goalies[0]); if (gp) g.G.push(M.overall(gp));
+    let best = 'C', low = Infinity;
+    Object.keys(g).forEach(k => { if (!g[k].length) return; const a = g[k].reduce((s, x) => s + x, 0) / g[k].length; if (a < low) { low = a; best = k; } });
+    return best;
+  }
   function faTargets() {
     const L = st.team.lineup, out = [], FT = ['sniper', 'playmaker', 'power', 'twoway', 'enforcer'];
-    out.push({ pos: needPos(), why: 'Upgrade at your weakest spot' });
+    const tp = thinnestPos(); out.push({ pos: tp, why: 'Depth at ' + tp + ', your thinnest position' });
     L.lines.forEach((ids, i) => {
       const ps = ids.map(byId).filter(Boolean), types = ps.map(p => p.type);
       if (types.length === 3 && new Set(types).size < 3) {
@@ -1104,19 +1178,24 @@
     if (!force && st.fa && st.fa.length && Date.now() - (st.faAt || 0) < 4 * 3600e3) return;
     const i = D.DIVISIONS.findIndex(x => x.d === st.div);
     const w = [[55, 38, 7, 0, 0], [45, 42, 13, 0, 0], [30, 45, 22, 3, 0], [20, 45, 30, 5, 0], [12, 40, 38, 10, 0], [6, 30, 44, 18, 2], [3, 22, 45, 26, 4], [2, 15, 42, 33, 8]][i];
-    const cap = maxRarity(), avoid = nameSet();
+    // free agents fill out a lineup: never Legendary, rarely Epic, and rated a few points under your lineup
+    const avoid = nameSet();
     st.fa = [];
     const ls = lineupIds().map(byId).filter(Boolean), avgL = ls.reduce((s, q) => s + M.overall(q), 0) / Math.max(1, ls.length);
+    const avgT = ls.reduce((s, q) => s + M.trainedOverall(q), 0) / Math.max(1, ls.length), d = div();
     for (let n = 0; n < 3; n++) {
-      const ri = Math.min(M.weightedIndex(w), cap);
+      const ri = Math.min(3, M.weightedIndex(w.slice(0, 3).concat([w[3] * 0.4])));
       // two in three are scouted for your team: a weak spot, a chemistry fix or your country core
       const tg = M.rand() < 0.65 ? M.pick(faTargets()) : null;
       const pos = tg ? tg.pos : M.pick(['LW', 'C', 'RW', 'D', 'D', 'G']);
-      const p = M.makePlayer(pos, D.RARITY[ri].k, draftTarget(ri), tg ? tg.nat : null, { avoid, type: tg ? tg.type : undefined });
+      const target = M.clamp(Math.round(avgT - M.ri(3, 8) + ri), Math.max(3, d.lo - 4), d.hi);
+      const p = M.makePlayer(pos, D.RARITY[ri].k, Math.min(D.RARITY[ri].cap - 2, target), tg ? tg.nat : null, { avoid, type: tg ? tg.type : undefined });
       // priced in minutes of your own passive income (so they never go cheap as the team grows), plus a premium
       // for anyone better than your current lineup average
       const over = Math.max(0, M.overall(p) - avgL), base = (350 * Math.pow(2.3, ri) + M.overall(p) * 25) * payout();
-      st.fa.push({ p, cost: Math.round((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over)), sold: false, why: tg ? tg.why : null });
+      // and never cheap: the higher of passive minutes and a long session of 5x-combo tapping
+      const cost = Math.max((base + passiveRate() * 60 * FA_MIN[ri]) * (1 + 0.06 * over), clickValue() * 5 * FA_TAPS[ri]);
+      st.fa.push({ p, cost: Math.round(cost), sold: false, why: tg ? tg.why : null });
     }
     st.faAt = Date.now();
   }
@@ -1284,7 +1363,9 @@
     { k: 'franchises', n: 'Franchise Builder', d: 'Start a new franchise (pays every time)', repeat: true },
     { k: 'points', n: 'Franchise Icon', d: 'One player reaches career points', tiers: [2500, 5000, 10000] },
     { k: 'games', n: 'Iron Man', d: 'One player reaches career games played', tiers: [1000, 2000, 4000] },
-    { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [10000, 25000] }
+    { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [10000, 25000] },
+    { k: 'taps', n: 'Iron Fingers', d: 'Total taps, every franchise', tiers: [250000, 1000000, 5000000] },
+    { k: 'twins', n: 'Winning Culture', d: 'Team wins, every franchise', tiers: [1000, 2500, 5000] }
   ];
   function careerBest() {
     const life = st.life = st.life || {};
@@ -1300,6 +1381,8 @@
     if (k === 'points') return life.maxPts || 0;
     if (k === 'games') return life.maxGp || 0;
     if (k === 'combo') return st.bestCombo || 0;
+    if (k === 'taps') return st.tapsAll || 0;
+    if (k === 'twins') return ((st.life && st.life.wins) || 0) + (st.totals.wins || 0);
     return 0;
   }
   function fachNeed(a, got) { return a.repeat ? got + 1 : a.tiers[got]; }
@@ -1370,11 +1453,27 @@
   function tapDay() { const d = new Date().toDateString(); if (!st.tapDay || st.tapDay.d !== d) st.tapDay = { d, n: 0, got: 0 }; return st.tapDay; }
   // after the daily goals, every 500 more taps drops something: gear, a late pick, pucks or shards, in turn
   const TAP_DROP_EVERY = 500, TAP_DROPS = ['gear', 'pick', 'shards', 'scout'];   // no pucks: tapping already pays pucks
+  // weekly practice goal: 15,000 taps Monday to Sunday pays a 2nd-round pick, shards and a piece of gear
+  const WEEK_GOAL = 15000;
+  function weekKey() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toDateString(); }
+  function tapWeek() { const k = weekKey(); if (!st.tapWeek || st.tapWeek.k !== k) st.tapWeek = { k, n: 0, done: false }; return st.tapWeek; }
+  function weekTap() {
+    st.tapsAll = (st.tapsAll || 0) + 1;
+    const w = tapWeek(); w.n++;
+    if (!w.done && w.n >= WEEK_GOAL) {
+      w.done = true; addPick(2);
+      const s = 30 + D.DIVISIONS.findIndex(x => x.d === st.div) * 10; st.shards.F += s; st.shards.D += s; st.shards.G += Math.round(s / 2);
+      const ri = Math.min(4, Math.max(2, D.PROMO_CAP[st.div] + 1)), g = smartGear(D.RARITY[ri].k); st.gear.push(g);
+      toast('Weekly goal: ' + fmt(WEEK_GOAL) + ' taps! A 2nd-round pick, ' + s + ' F and D shards, ' + Math.round(s / 2) + ' G shards and ' + M.gearName(g), 'gold');
+      save();
+    }
+  }
   function countTap(n) {
     if (!st) return;
     const t = tapDay();
     for (let i = 0; i < (n || 1); i++) {
       t.n++;
+      weekTap();
       const g = TAP_GOALS[t.got];
       if (g && t.n >= g.n) {
         t.got++;
@@ -1523,6 +1622,7 @@
       if (st.phase === 'missed') endSeason(false);
       if (st.tokens != null) { if (st.tokens > 0) addPick(6, st.tokens); delete st.tokens; }
       st.picks = st.picks || {}; st.fac = st.fac || {}; applyFac();
+      if (st.standings) assignBadges();
       if (st.demo && !st.dev) st.demo = false;
       const fixed = repairRoster();
       if (fixed) setTimeout(() => toast('Fixed ' + fixed + ' lineup slot' + (fixed > 1 ? 's' : '') + ' that held the wrong player', 'promo'), 600);
@@ -1587,8 +1687,8 @@
     spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,
     upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, BREAK_MAX, shardPrice, buyShards,
     teamOvr, clickValue, passiveRate, tickPassive, activeBoosts, buyBoost, activateBoost, boostCost,
-    fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
-    AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, tradePlayers, combinePicks, tradeValue, tradeQuote, tradeIn, pickValue,
+    fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, tapWeek, WEEK_GOAL, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
+    AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, scoutInfo, openBoard, rescoutBoard, chooseBoard, autoDraft, scoutPick, tradePlayers, combinePicks, tradeValue, tradeQuote, tradeIn, pickValue,
     refreshAgents, signAgent, faRescout, faRescoutLeft, lineupIds, bench, canSwap, lineupSwap, group, repairRoster, tradeable, toggleLock, batchTrade,
     facLvl, facVal, facMax, facCost, buildFac, canPrestige, prestige, keepLimit, FACH, fachValue, fachNeed, offerFach, takeFach, setAutoScrap, setAutoUp,
     SLOTS, curSlot, slotInfo, useSlot, deleteSlot, bringBack,

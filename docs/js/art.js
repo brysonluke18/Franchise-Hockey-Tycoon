@@ -99,11 +99,15 @@
     hawk: ['<path d="M22 96c-2-14-6-24-14-32l14-2C16 54 12 48 6 42h18C26 24 42 10 60 10c18 0 32 12 36 30 1 10-5 18-12 22 2-8 0-12-4-14l-10 2c-4 16-10 30-14 46z"/>',
       '<circle cx="66" cy="30" r="5.5"/><path d="M50 22h30l-4 5H52z"/><path d="M78 42c5 2 10 2 16 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>', '<circle cx="67" cy="30" r="2.2"/>'],
     flame: ['<path d="M50 2c8 18 26 26 28 50 2 24-12 44-28 44S20 82 20 62c0-16 10-24 14-34 4 10 8 14 12 12 4-10 0-22 4-38z"/>',
-      '<path d="M50 48c6 10 14 16 12 30-2 10-8 14-12 14-6 0-12-6-12-14 0-10 8-14 12-30z"/>', '']
+      '<path d="M50 48c6 10 14 16 12 30-2 10-8 14-12 14-6 0-12-6-12-14 0-10 8-14 12-30z"/>', ''],
+    crown: ['<path d="M8 76 14 28l20 22 16-34 16 34 20-22 6 48z"/><rect x="8" y="80" width="84" height="12" rx="3"/>', '<circle cx="50" cy="62" r="6"/><circle cx="28" cy="65" r="4"/><circle cx="72" cy="65" r="4"/>', ''],
+    mountain: ['<path d="M2 88 36 24l16 27 12-19 34 56z"/>', '<path d="M36 24 27 41l6-3 4 5 5-6zM64 32l-7 11 4-1 3 3 4-3z"/>', ''],
+    sticks: ['<path d="M14 6l10-2 46 66 14 2 6 10-24-2z"/><path d="M86 6 76 4 30 70l-14 2-6 10 24-2z"/><ellipse cx="50" cy="90" rx="14" ry="5"/>', '', ''],
+    wave: ['<path d="M4 72c10-30 34-52 62-52 14 0 24 6 30 14-12-4-24-2-32 6 10 0 18 4 22 12-16-6-34 0-40 20z"/><path d="M4 80h92v12H4z"/>', '<path d="M4 86c15-6 30 6 46 0s31-6 46 0" fill="none" stroke="currentColor" stroke-width="3"/>', '']
   };
   // c: main colour, bg: the colour behind the crest (used for cut-outs; a darker tint when unknown)
   // measured once: moves and scales each emblem so its real outline is centred in the 100x100 box (92 units across)
-  const CREST_FIT = { shield: [-0.55, -1.05, 1.011], circle: [1.96, -2.13, 1.022], diamond: [1.06, 1.06, 0.979], star: [1.06, 2.53, 0.979], wing: [-0.09, 6.04, 1.022], anchor: [0, 1, 1], bolt: [1.13, 2.08, 0.958], leaf: [0.54, 1.03, 0.989], bear: [-4.76, -6.95, 1.095], wolf: [1.06, 0.09, 0.979], hawk: [-2.13, -4.11, 1.021], flame: [1.95, 2.04, 0.979] };
+  const CREST_FIT = { shield: [-0.55, -1.05, 1.011], circle: [1.96, -2.13, 1.022], diamond: [1.06, 1.06, 0.979], star: [1.06, 2.53, 0.979], wing: [-0.09, 6.04, 1.022], anchor: [0, 1, 1], bolt: [1.13, 2.08, 0.958], leaf: [0.54, 1.03, 0.989], bear: [-4.76, -6.95, 1.095], wolf: [1.06, 0.09, 0.979], hawk: [-2.13, -4.11, 1.021], flame: [1.95, 2.04, 0.979], crown: [-4.76, -9.13, 1.095], mountain: [2.1, -3.65, 0.958], sticks: [-0.55, -0.04, 1.011], wave: [0, -6, 1] };
   function crestInner(kind, c, bg) {
     const cr = CREST[kind] || CREST.shield, b = bg || 'rgba(0,0,0,.38)';
     return '<g transform="translate(' + (CREST_FIT[kind] || CREST_FIT.shield).slice(0, 2).join(' ') + ') scale(' + (CREST_FIT[kind] || CREST_FIT.shield)[2] + ')">' + '<g fill="' + c + '">' + cr[0] + '</g><g fill="' + b + '" color="' + b + '">' + cr[1] + '</g><g fill="' + c + '" color="' + c + '">' + cr[2] + '</g>' + '</g>';
@@ -287,10 +291,13 @@
 
   // ---------------------------------------------------------------- AI team badges
   const BADGE = ['#c0392b', '#1f6feb', '#16a34a', '#7c3aed', '#ea580c', '#0e7490', '#b91c1c', '#ca8a04', '#be185d', '#334155', '#0f766e', '#4338ca'];
-  function teamColor(name) { return BADGE[hash(name) % BADGE.length]; }
+  // the state module hands over a unique crest and colour per league team each season
+  let badgeMap = {};
+  function setBadges(m) { badgeMap = m || {}; }
+  function teamColor(name) { return badgeMap[name] ? badgeMap[name].color : BADGE[hash(name) % BADGE.length]; }
   function teamBadge(name, size) {
     const s = size || 22, hsh = hash(name);
-    const crest = D.CRESTS[(hsh >> 4) % D.CRESTS.length];
+    const crest = badgeMap[name] ? badgeMap[name].crest : D.CRESTS[(hsh >> 4) % D.CRESTS.length];
     return '<span class="tb" style="width:' + s + 'px;height:' + s + 'px;background:' + teamColor(name) + '">' + crestSVG(crest, '#fff', Math.round(s * 0.62), teamColor(name)) + '</span>';
   }
 
@@ -375,5 +382,5 @@
       '</g><circle cx="32" cy="32" r="30.6" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2.6"/></svg>';
   }
 
-  G.ART = { hash, icon, gearIcon, gearColor, crestSVG, logoSVG, jerseySVG, portrait, lookOf, SKIN, HAIR, HAIR_STYLES, HAIR_N, BEARDS, BEARD_N, MASKS, MASK_N, coachPortrait, coachLook, COACH_HAIR, COACH_HAIR_N, COACH_FACE, COACH_FACE_N, COACH_HAIRC, defs, teamBadge, teamColor, rarityColor, flag };
+  G.ART = { hash, icon, gearIcon, gearColor, crestSVG, logoSVG, jerseySVG, portrait, lookOf, SKIN, HAIR, HAIR_STYLES, HAIR_N, BEARDS, BEARD_N, MASKS, MASK_N, coachPortrait, coachLook, setBadges, BADGE, COACH_HAIR, COACH_HAIR_N, COACH_FACE, COACH_FACE_N, COACH_HAIRC, defs, teamBadge, teamColor, rarityColor, flag };
 })(window.BK = window.BK || {});
