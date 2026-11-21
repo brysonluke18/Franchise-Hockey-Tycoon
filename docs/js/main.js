@@ -305,7 +305,7 @@
     }
     if ((x = el('[data-legbuy]'))) {
       if (x.dataset.sure) { if (ST.buyLegend(x.dataset.legbuy)) { UI.playerSheet(x.dataset.legbuy); UI.render(); } }
-      else { x.dataset.sure = '1'; x.textContent = 'Tap again to spend ' + ST.LEGEND_COST + ' tokens'; }
+      else { x.dataset.sure = '1'; x.textContent = 'Tap again to spend ' + ST.LEGEND_COST + ' token' + (ST.LEGEND_COST > 1 ? 's' : ''); }
       return;
     }
     if ((x = el('[data-break]'))) { if (ST.breakthrough(x.dataset.break)) UI.playerSheet(x.dataset.break); return; }

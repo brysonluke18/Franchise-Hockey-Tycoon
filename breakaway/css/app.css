@@ -1112,3 +1112,6 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 @media (max-width:420px){.fr-deal{grid-template-columns:1fr}}
 .legbtns{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 .legtok{font-size:11.5px;color:var(--dim2)}
+.aw-warn{display:flex;gap:8px;align-items:flex-start;text-align:left;margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(224,64,64,.12);border:1px solid rgba(224,64,64,.4);font-size:12.5px}.aw-warn svg{color:var(--bad);flex:none;margin-top:1px}
+.hdr-rec{font-size:11.5px;color:var(--dim);margin-top:1px;white-space:nowrap}.hdr-rec b{color:var(--ink);font-weight:700}
+.gt-better{position:absolute;top:3px;left:3px;z-index:2;width:17px;height:17px;border-radius:50%;background:var(--good);color:#06120a;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--bg3)}.gt-better svg{width:11px;height:11px}

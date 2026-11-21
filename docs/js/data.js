@@ -351,7 +351,7 @@
     offlineCapBase: 10, offlineCapMax: 40,
     costBase: 40, costGrowth: 1.075, costMult: 1,
     clickPerOvr: 0.25,      // pucks per tap = (1 + team ovr * this) * payout
-    passivePerOvr: 0.35     // pucks per second = team ovr * this * payout
+    passivePerOvr: 0.49     // pucks per second = team ovr * this * payout
   };
 
   G.DATA = {

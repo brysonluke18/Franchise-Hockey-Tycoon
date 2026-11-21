@@ -562,6 +562,10 @@
     // the bar is set by the best team in the league, and that includes yours
     const R = divRef(), fAI = M.clamp((ai[0].O + ai[0].D) / 2 / R, 0.85, 1.35), f = M.clamp(Math.max((ai[0].O + ai[0].D) / 2, teamOvr() * 0.9) / R, 0.85, 1.6);
     const me = teamById('me'), myPct = (me.w * 2 + me.otl) / (2 * games);
+    // voters reward winning: a team that missed the playoffs costs its players votes on the judged awards
+    // (MVP, defense, two-way, goalie); pure stat titles (points, goals, assists, wins) are unchanged
+    const seedNow = sorted().findIndex(t => t.id === 'me') + 1, missed = st.phase === 'missed';
+    const teamF = missed ? 0.78 : seedNow <= 3 ? 1.05 : 1;
     const sk = st.team.roster.filter(p => p.pos !== 'G' && p.season.gp >= games * 0.4);
     const fw = sk.filter(p => p.pos !== 'D'), dm = sk.filter(p => p.pos === 'D');
     const gs = st.team.roster.filter(p => p.pos === 'G' && p.season.gp >= games * 0.3);
@@ -585,14 +589,14 @@
     p = top(sk, q => q.season.a); x = Math.round(games * (0.6 + r() * 0.3) * fAI); decide(AWARDS[2], p, p ? p.season.a : 0, x, p && p.season.a + ' assists', x + ' assists');
     p = top(gs, q => q.season.w); x = Math.round(games * (0.45 + r() * 0.12)); decide(AWARDS[3], p, p ? p.season.w : 0, x, p && p.season.w + ' wins', x + ' wins');
     const mvp = q => q.season.p * (0.7 + myPct * 0.6) + M.overall(q) * 0.2;
-    p = top(sk, mvp); x = games * (1.05 + r() * 0.35) * f; decide(AWARDS[4], p, p ? mvp(p) : 0, x, p && p.season.p + ' pts, ' + Math.round(myPct * 100) + '% of points won', Math.round(x * 0.9) + ' pts');
+    p = top(sk, mvp); x = games * (1.05 + r() * 0.35) * f; decide(AWARDS[4], p, p ? mvp(p) * teamF : 0, x, p && p.season.p + ' pts, ' + Math.round(myPct * 100) + '% of points won', Math.round(x * 0.9) + ' pts');
     const dsc = q => q.season.p + 0.2 * q.season.blk + 0.3 * Math.max(0, q.season.pm) + M.eff(q, 'defense') * 0.15;
-    p = top(dm, dsc); x = games * (0.7 + r() * 0.35) * f; decide(AWARDS[5], p, p ? dsc(p) : 0, x, p && p.season.p + ' pts, ' + p.season.blk + ' blocks', Math.round(x * 0.6) + ' pts');
+    p = top(dm, dsc); x = games * (0.7 + r() * 0.35) * f; decide(AWARDS[5], p, p ? dsc(p) * teamF : 0, x, p && p.season.p + ' pts, ' + p.season.blk + ' blocks', Math.round(x * 0.6) + ' pts');
     const gsc = q => (svp(q) - 0.88) * 1000 + q.season.w * 0.4;
     p = top(gs, gsc); const aiSv = 0.902 + r() * 0.02 + (f - 1) * 0.01; x = (aiSv - 0.88) * 1000 + games * 0.5 * 0.4;
-    decide(AWARDS[6], p, p ? gsc(p) : 0, x, p && svp(p).toFixed(3).slice(1) + ' SV%', aiSv.toFixed(3).slice(1) + ' SV%');
+    decide(AWARDS[6], p, p ? gsc(p) * teamF : 0, x, p && svp(p).toFixed(3).slice(1) + ' SV%', aiSv.toFixed(3).slice(1) + ' SV%');
     const tw = q => q.season.pm + 0.3 * q.season.blk + 0.1 * q.season.hits + 0.3 * q.season.p + M.eff(q, 'defense') * 0.2;
-    p = top(fw, tw); x = games * (0.75 + r() * 0.3) * f; decide(AWARDS[7], p, p ? tw(p) : 0, x, p && (p.season.pm > 0 ? '+' : '') + p.season.pm + ', ' + p.season.p + ' pts', '+' + Math.round(games * 0.4) + ', ' + Math.round(x * 0.7) + ' pts');
+    p = top(fw, tw); x = games * (0.75 + r() * 0.3) * f; decide(AWARDS[7], p, p ? tw(p) * teamF : 0, x, p && (p.season.pm > 0 ? '+' : '') + p.season.pm + ', ' + p.season.p + ' pts', '+' + Math.round(games * 0.4) + ', ' + Math.round(x * 0.7) + ' pts');
     const po = st.playoff;
     if (wonCup && po) {
       const pid = Object.keys(po.pts || {}).sort((a, b) => po.pts[b] - po.pts[a])[0];
@@ -643,7 +647,9 @@
     st.shards.F += pack.F; st.shards.D += pack.D; st.shards.G += pack.G;
     addPick(7);
     if (st.phase !== 'missed') addPick(6);
-    emit('card', { kind: 'awards', season: st.season, divName: div().n, list: awards, shards: pack, result: st.history[0].result });
+    const mine = awards.filter(a => a.winner.mine).length;
+    if (st.history[0].result === 'Missed playoffs' && mine >= 3) toast('Players win awards, teams win games: ' + mine + ' awards, but no playoffs. Your stars carried a thin roster. Look at depth, chemistry and defense.', 'loss');
+    emit('card', { kind: 'awards', season: st.season, divName: div().n, list: awards, shards: pack, result: st.history[0].result, warn: st.history[0].result === 'Missed playoffs' && mine >= 3 ? mine : 0 });
     if (st.div === 1) st.eliteSeasons = (st.eliteSeasons || 0) + 1;
     st.season++;
     bump('seasons', st.season - 1);
@@ -702,7 +708,7 @@
   }
   // the $0.99 Legend upgrade: one Epic player you love becomes Legendary (demo build: no real charge)
   // Legend upgrade: spend Legend tokens (sold 5 for $0.99 in the demo; one also comes from each weekly tap goal)
-  const LEGEND_COST = 5;
+  const LEGEND_COST = 1;
   function buyTokens() { st.legendTokens = (st.legendTokens || 0) + 5; toast('+5 Legend tokens', 'gold'); save(); return true; }
   function buyLegend(playerId) {
     const p = byId(playerId);
@@ -757,7 +763,8 @@
     // traits are Hall of Fame only now (franchise achievements), so picks never offer one
     if (roll < 0.15) opts.push({ t: 'scout', label: 'Rescout token', n: 1 + (tier >= 3 ? 1 : 0) });
     else if (roll < 0.5) { const b = M.pick(D.BOOSTS); opts.push({ t: 'boost', label: b.n, k: b.k, n: 1 + (tier >= 3 ? 1 : 0) }); }
-    else { const pk = Math.round(900 * payout() * (1 + tier)); opts.push({ t: 'pucks', label: fmt(pk) + ' pucks', n: pk }); }
+    else { // worth taking: about 12 minutes of passive income plus 600 taps, more for bigger rewards
+      const pk = Math.round(Math.max(900 * payout() * (1 + tier), (passiveRate() * 60 * 12 + clickValue() * 600) * (1 + 0.7 * tier))); opts.push({ t: 'pucks', label: fmt(pk) + ' pucks', n: pk }); }
     return { kind: 'pick', title, sub: 'Pick one. The other two are gone.', options: opts, tier, rerolled: false };
   }
   function rerollPick() {
@@ -952,8 +959,8 @@
 
   // ---------------------------------------------------------------- draft picks
   const ROUND_ODDS = {
-    1: [0, 15, 50, 28, 7], 2: [5, 35, 45, 13, 2], 3: [15, 45, 32, 8, 0], 4: [30, 48, 20, 2, 0],
-    5: [50, 40, 10, 0, 0], 6: [72, 26, 2, 0, 0], 7: [100, 0, 0, 0, 0]
+    1: [0, 15, 50, 28, 7], 2: [5, 35, 45, 13, 2], 3: [15, 45, 32, 8, 0], 4: [35, 48, 16, 1, 0],
+    5: [58, 36, 6, 0, 0], 6: [80, 19, 1, 0, 0], 7: [100, 0, 0, 0, 0]
   };
   // drafted and signed players may sit one tier above what the division lets you promote to
   // legendary free agents only show up from Division 7 (tier 4)
@@ -963,7 +970,9 @@
   const LEG_ODDS = { 1: [1, 20], 2: [0, 8], 3: [0, 3] };
   function pickOdds(round) {
     const o = ROUND_ODDS[round].slice();
-    for (let s = 0; s < 8 - tier(); s++) for (let i = 2; i >= 0; i--) { const m = o[i] * 0.35; o[i] -= m; o[i + 1] += m; }
+    // late rounds climb with the division more slowly than early ones
+    const lift = round >= 4 ? 0.22 : 0.35;
+    for (let s = 0; s < 8 - tier(); s++) for (let i = 2; i >= 0; i--) { const m = o[i] * lift; o[i] -= m; o[i + 1] += m; }
     const t = (15 - st.div) / 14, L = LEG_ODDS[round];
     const leg = L ? L[0] + (L[1] - L[0]) * t : 0, rest = o[0] + o[1] + o[2] + o[3];
     for (let i = 0; i < 4; i++) o[i] = Math.round(o[i] / rest * (100 - leg) * 10) / 10;
@@ -975,7 +984,7 @@
   // prospects are rated against your own team, not the division: a 1st-rounder walks into your top six
   // prospects are rated against your team but never past the top of your division (top picks may reach just over it),
   // so drafting alone cannot ratchet a team upward: training still has to do the climbing
-  const ROUND_EDGE = { 1: 4, 2: 2, 3: 0, 4: -2, 5: -4, 6: -6, 7: -8 };
+  const ROUND_EDGE = { 1: 4, 2: 2, 3: 0, 4: -3, 5: -6, 6: -9, 7: -12 };
   function draftTarget(ri, round) {
     const d = div(), base = Math.max(d.lo, teamOvr());
     const edge = round ? ROUND_EDGE[round] : 0, ceil = d.hi + (round && round <= 2 ? 3 : 0) + facVal('scout');
@@ -1710,7 +1719,7 @@
     if (awaySec > 60) {
       const sec = Math.max(0, Math.min(awaySec, offlineHours() * 3600 - st.offDay.sec));
       st.offDay.sec += sec;
-      pucks = Math.round(0.5 * passiveRate() * sec); st.pucks += pucks;
+      pucks = Math.round(0.36 * passiveRate() * sec);   // away: about a third of the (now higher) passive rate, same as before st.pucks += pucks;
     }
     let n = 0;
     const me0 = teamById('me') ? Object.assign({}, teamById('me')) : null, rank0 = sorted().findIndex(t => t.id === 'me') + 1;

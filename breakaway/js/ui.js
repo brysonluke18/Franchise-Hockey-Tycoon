@@ -88,7 +88,12 @@
     h += '</section><div class="note chemnote' + (st.showChem ? ' on' : '') + '">Chemistry is mostly <b>games played together</b>: it keeps growing the longer a unit stays together, and by ' + M.CHEM_FADE + ' games it fully erases any bad fit. Fit is a small instant bonus: mixed roles and a shared country help a line, two of one type hurts. OFD with DFD or two TWDs help a pair; two OFDs or two DFDs hurt. Goalies have no chemistry. The backup starts about 30% of regular-season games.</div>';
     const extras = ST.bench().sort((a, b) => M.overall(b) - M.overall(a));
     h += sh('Bench', '<span class="sec-note">' + extras.length + ' player' + (extras.length === 1 ? '' : 's') + '</span>');
-    h += extras.length ? '<section class="bgrid' + (editMode ? ' editing' : '') + '">' + extras.map(p => gtile(p, p.pos)).join('') + '</section>' +
+    h += extras.length ? '<section class="bgrid' + (editMode ? ' editing' : '') + '">' + extras.map(p => { const same = [];
+      L.lines.forEach(l => l.forEach((id, j) => { if (['LW', 'C', 'RW'][j] === p.pos && by[id]) same.push(by[id]); }));
+      if (p.pos === 'D') L.pairs.forEach(pr => pr.forEach(id => { if (by[id]) same.push(by[id]); }));
+      if (p.pos === 'G') L.goalies.forEach(id => { if (by[id]) same.push(by[id]); });
+      const worst = same.reduce((m, q) => Math.min(m, M.overall(q)), Infinity);
+      return gtile(p, p.pos, same.length && M.overall(p) > worst); }).join('') + '</section>' +
       '<div class="note">Signed, drafted and spare players wait here. Use Edit lines to play one, or trade them on the Office tab.</div>'
       : '<div class="empty">' + ic('team', 24) + '<span>Nobody on the bench. Players you sign or draft land here.</span></div>';
     return h;
@@ -97,13 +102,13 @@
     const slots = D.GEAR_SLOTS[p.pos === 'G' ? 'goalie' : 'skater'];
     return '<span class="gmini">' + slots.map(s => { const g = p.gear[s.k]; return A.gearIcon(s.k, g ? A.gearColor(g) : 'var(--line2)', 11); }).join('') + '</span>';
   }
-  function gtile(p, slot) {
+  function gtile(p, slot, better) {
     if (!p) return '<span class="gt empty"></span>';
     const al = !editMode && gtilePromo, marks = al ? (al.gearP[p.id] ? '<i class="mk g" title="Better gear in the locker">' + ic('gear', 9) + '</i>' : '') + (al.train[p.id] ? '<i class="mk t" title="Can train an attribute">' + ic('up', 9) + '</i>' : '') + (al.promo[p.id] ? '<i class="mk r" title="Can promote or break through">' + ic('star', 9) + '</i>' : '') : '';
     const sel = selSwap === p.id, can = editMode && selSwap && !sel && ST.canSwap(selSwap, p.id);
     const off = ['LW', 'C', 'RW'].indexOf(slot) >= 0 && p.pos !== slot;
     return '<button class="gt' + (sel ? ' sel' : '') + (can ? ' can' : '') + (editMode && selSwap && !sel && !can ? ' dim' : '') + '" data-p="' + p.id + '">' +
-      (marks ? '<span class="gt-mk">' + marks + '</span>' : '') + (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
+      (marks ? '<span class="gt-mk">' + marks + '</span>' : '') + (better ? '<span class="gt-better" title="Better than a ' + p.pos + ' in your lineup">' + ic('up', 11) + '</span>' : '') + (p.locked ? '<span class="lk">' + ic('lock', 11) + '</span>' : '') + '<span class="gt-slot' + (off ? ' off' : '') + '">' + (off ? slot + '·' + p.pos : slot) + '</span>' +
       '<span class="pt-face">' + A.portrait(p, team(), 44, rcol(p)) + ovr(p) + '</span>' +
       '<span class="gt-n">' + flag(p.nat, 12) + esc(last(p)) + '</span>' +
       '<span class="gt-m">' + typeTag(p) + gearMini(p) + '</span></button>';
@@ -480,7 +485,7 @@
     h += '<div class="fa-rs"><span>' + ic('swap', 14) + ' New free agents: ' + (rl ? 'ad rescout in ' + Math.ceil(rl / 60e3) + ' min' : 'ad rescout ready') + (tk ? ' · ' + tk + ' token' + (tk > 1 ? 's' : '') : '') + '</span>' +
       '<button class="btn sm" data-farescout="ad"' + (rl ? ' disabled' : '') + '>Watch ad</button>' + (tk ? '<button class="btn sm primary" data-farescout="token">Use token</button>' : '') + '</div>';
 
-    h += '<div class="fa-rs"><span>' + ic('star', 14) + ' Legend tokens: ' + (st.legendTokens || 0) + ' · ' + ST.LEGEND_COST + ' make an Epic player Legendary</span>' +
+    h += '<div class="fa-rs"><span>' + ic('star', 14) + ' Legend tokens: ' + (st.legendTokens || 0) + ' · one makes an Epic player Legendary</span>' +
       '<button class="btn sm gold" data-tokbuy="1">Buy 5 · $0.99</button></div>';
     const cap = ST.maxRarity();
     h += sh(ic('token', 18) + ' Draft picks', ST.pickCount() > 1 ? '<button class="btn sm primary" data-act="draftall">' + ic('token', 14) + ' Auto-draft ' + ST.pickCount() + '</button>' : '<span class="sec-note">1st-round Legendary chance: ' + ST.pickOdds(1)[4] + '%</span>');
@@ -492,7 +497,7 @@
         '<span class="odds-l">' + odds.map((o, i) => o ? '<em style="color:' + D.RARITY[i].color + '">' + D.RARITY[i].n + ' ' + o + '%</em>' : '').join('') + '</span></span>' +
         '<span class="dp-a"><span class="dp-n">×' + n + '</span><button class="buy' + (n ? ' primary' : '') + '" data-draft="' + r + '"' + (n ? '' : ' disabled') + '>Draft</button>' +
         (r > 1 && n >= 2 ? '<button class="buy" data-combine="' + r + '">2 → ' + ST.ord(r - 1) + '</button>' : '') + '</span></div>';
-    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 4 to 8 better than your average, a 7th-rounder about 4 to 8 worse, and nobody arrives far above your division’s top. Scouts lean toward your weakest starter’s position. Rarity odds improve each division you climb; a 1st-round pick always has a Legendary chance (1% in Division 15, up to 20% in Division 1).</div>';
+    }).join('') + '</section><div class="note">Prospects are rated against your team: a 1st-rounder is about 4 to 8 better than your average, a 7th-rounder about 8 to 12 worse, and nobody arrives far above your division’s top. Scouts lean toward your weakest starter’s position. Rarity odds improve each division you climb; a 1st-round pick always has a Legendary chance (1% in Division 15, up to 20% in Division 1).</div>';
 
     h += sh(ic('bolt', 18) + ' Boosts', '<span class="sec-note">Earned from rewards or bought here</span>');
     h += '<section class="panel flush boosts">' + D.BOOSTS.map(b => {
@@ -676,7 +681,7 @@
       }
       h += '<div class="note">Epic is as far as promotion goes. Breakthroughs let a player you love keep climbing. <b style="color:' + D.RARITY[4].color + '">Legendary</b> players come from the draft, free agency, title packs and the three-for-one trade.</div>' +
         '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: Legendary caps (strengths up to 99, weaker skills lower by type) and a trait slot.</i></div>' +
-        '<div class="legbtns"><button class="btn sm gold" data-legbuy="' + p.id + '"' + ((st.legendTokens || 0) >= ST.LEGEND_COST ? '' : ' disabled') + '>Use ' + ST.LEGEND_COST + ' tokens</button>' +
+        '<div class="legbtns"><button class="btn sm gold" data-legbuy="' + p.id + '"' + ((st.legendTokens || 0) >= ST.LEGEND_COST ? '' : ' disabled') + '>Use ' + ST.LEGEND_COST + ' token' + (ST.LEGEND_COST > 1 ? 's' : '') + '</button>' +
         '<button class="btn sm" data-tokbuy="1">Buy 5 · $0.99</button><span class="legtok">You have ' + (st.legendTokens || 0) + ' Legend token' + ((st.legendTokens || 0) === 1 ? '' : 's') + '</span></div></div></div>';
     }
     else if (next) h += '<div class="note">Division ' + st.div + ' allows promotions up to ' + D.RARITY[ST.promoCap()].n + '. Move up a division to go further.</div>';
@@ -1066,7 +1071,7 @@
     const hrs = r.awaySec >= 3600 ? Math.floor(r.awaySec / 3600) + 'h ' + Math.round((r.awaySec % 3600) / 60) + 'm' : Math.max(1, Math.round(r.awaySec / 60)) + ' min';
     let h = '<div class="pick-h"><div class="eyebrow">Welcome back</div><h2 class="big-title">While you were away</h2><p class="sub">Gone ' + hrs + '.</p></div><div class="awl">';
     const row = (icn, b, i) => '<div class="aw-r">' + ic(icn, 20) + '<span><b>' + b + '</b>' + (i ? '<i>' + i + '</i>' : '') + '</span></div>';
-    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: half your passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
+    if (r.pucks) h += row('puck', fmt(r.pucks) + ' pucks', 'Away earnings: about a third of your passive income, up to ' + ST.offlineHours().toFixed(1) + 'h a day');
     if (r.games) {
       const rc = r.rec || { w: 0, l: 0, otl: 0, gf: 0, ga: 0 };
       h += row('season', r.games + ' game' + (r.games > 1 ? 's' : '') + ' played · ' + rc.w + '-' + rc.l + '-' + rc.otl, 'Goals ' + rc.gf + '–' + rc.ga + (r.gamePucks ? ' · +' + fmt(r.gamePucks) + ' pucks from wins' : ''));
@@ -1126,6 +1131,7 @@
     const st = ST.get(), mine = c.list.filter(a => a.winner.mine).length;
     let h = '<div class="pick-h"><div class="eyebrow">Season ' + c.season + ' · ' + esc(c.divName) + '</div><h2 class="big-title">' + esc(c.result || 'Season over') + '</h2>' +
       '<p class="sub">' + (mine ? 'Your players took ' + mine + ' of ' + c.list.length + ' awards.' : 'No awards for your team this year.') + '</p>' +
+      (c.warn ? '<div class="aw-warn">' + ic('flame', 16) + '<span><b>Players win awards, teams win games.</b> Your stars carried a team that missed the playoffs. Spread the training, fix weak lines and shore up the defense.</span></div>' : '') +
       (c.shards ? '<div class="shardrow">' + ['F', 'D', 'G'].map(k => '<span>' + shardIc(k, 14) + '+' + c.shards[k] + ' ' + k + '</span>').join('') + '<span>' + ic('token', 14) + ' +picks</span></div>' : '') + '</div><div class="awards">';
     c.list.forEach(a => {
       const w = a.winner, p = w.mine ? st.team.roster.find(x => x.id === w.pid) : null;
@@ -1222,6 +1228,9 @@
     $('#curRate').textContent = '+' + fmt(ST.passiveRate()) + '/s';
     $('#hdrTeam').textContent = st.team.city + ' ' + st.team.name;
     $('#hdrDiv').textContent = (st.prestige ? 'F' + (st.prestige + 1) + ' · ' : '') + 'Div ' + st.div + ' · ' + ST.div().n + ' · S' + st.season;
+    // record and place, always visible (handy while tapping)
+    { const me = ST.teamById('me'), place = ST.sorted().findIndex(t => t.id === 'me') + 1, n = st.standings.length, hr = $('#hdrRec');
+      if (hr && me) hr.innerHTML = '<b>' + me.w + '-' + me.l + '-' + me.otl + '</b> · ' + ST.ord(place) + ' of ' + n + (st.phase === 'playoffs' && st.playoff ? ' · playoffs ' + st.playoff.w + '-' + st.playoff.l : place <= ST.poTeams() ? ' · in' : ' · out'); }
     $('#hdrCrest').innerHTML = A.logoSVG(st.team, 36);
     document.documentElement.style.setProperty('--tc', st.team.c1);
     const act = ST.activeBoosts();

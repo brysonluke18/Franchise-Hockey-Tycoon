@@ -216,8 +216,12 @@
     return v;
   }
   function effAll(p) { const o = {}; (p.pos === 'G' ? D.GOALIE_ATTRS : D.SKATER_ATTRS).forEach(k => { o[k] = eff(p, k); }); return o; }
-  function overall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * eff(p, k); return Math.round(t * ovrK(p)); }
-  function trainedOverall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * (p.a[k] || 0); return Math.round(t * ovrK(p)); }
+  // Overall is the position-weighted average of the attributes, plus a lift that grows toward the top so a fully
+  // trained Legendary reads 99: barely anything at low ratings (so Overall matches the attributes you see), the
+  // whole gap at the max. Gear and boosts above the max keep adding one for one.
+  function ovrShape(p, t) { const top = 99 / ovrK(p), gap = 99 - top; return t <= top ? t + gap * Math.pow(t / top, 3) : t + gap; }
+  function overall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * eff(p, k); return Math.round(ovrShape(p, t)); }
+  function trainedOverall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * (p.a[k] || 0); return Math.round(ovrShape(p, t)); }
   function isGold(p) { return overall(p) > 99; }
   // early points are discounted (about 40% at a rating of 10, full price from 30 up) so the first hours have plenty to buy
   function upgradeCost(value) { const T = D.TUNING, early = Math.max(0.4, Math.min(1, (value + 2) / 32)); return Math.max(1, Math.round(T.costBase * Math.pow(T.costGrowth, value) * early * (T.costMult || 1))); }

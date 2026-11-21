@@ -148,10 +148,10 @@
     if (opp.shutdown) O *= 0.94;
     const shots = Math.round(M.clamp(30 * Math.pow(O / Math.max(6, opp.D), 0.65), 16, 50));
     // goaltending swings hard: a goalie well above the division carries a team
-    let psave = 0.900 + 0.0020 * (opp.G - ref) - 0.0010 * (O - ref);
+    // base save % stays in a realistic .850-.935 band; Brick Wall and goalie tendencies can push past it a little
+    let psave = M.clamp(0.898 + 0.0013 * (opp.G - ref) - 0.0010 * (O - ref), 0.85, 0.935);
     if (opp.gloveflash) psave += 0.010;
-    psave += opp.gsv || 0;   // goalie tendencies
-    psave = M.clamp(psave, 0.83, 0.965);
+    psave = Math.min(0.955, psave + (opp.gsv || 0));
     return { self, opp, O, shots, psave, ref, stats: self.user ? {} : null, list: self.user ? [] : null, goalRate: 1 - psave };
   }
 
