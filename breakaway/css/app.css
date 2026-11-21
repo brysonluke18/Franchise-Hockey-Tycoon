@@ -1110,3 +1110,5 @@ em.leg{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
 .fr-deal b{font:700 11px/1.2 var(--fb);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
 .fr-deal .up b{color:var(--good)}.fr-deal .down b{color:var(--bad)}
 @media (max-width:420px){.fr-deal{grid-template-columns:1fr}}
+.legbtns{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.legtok{font-size:11.5px;color:var(--dim2)}

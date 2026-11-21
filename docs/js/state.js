@@ -136,12 +136,20 @@
   }
 
   // ---------------------------------------------------------------- season
+  // Division 1 is a 32-team league (16 make the playoffs, four rounds); every other division has 16 teams (8, three rounds)
+  function leagueSize() { return st.div === 1 ? 32 : 16; }
+  function poTeams() { return st.div === 1 ? 16 : 8; }
+  function poRounds() { return poTeams() === 16 ? 4 : 3; }
+  function roundNames() { return poRounds() === 4 ? ['Round 1', 'Round 2', 'Conference Finals', 'Finals'] : ['Round 1', 'Round 2', 'Finals']; }
   function aiTeams() {
     const d = div();
     const out = [];
     const local = st.fav && tier() >= 6 && D.CITY_BY_NAT[st.fav];
     const cities = (local ? D.CITY_BY_NAT[st.fav] : D.CITIES).slice();
     const mascots = D.MASCOTS.slice();
+    const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
+    if (cities.length < leagueSize()) cities.push.apply(cities, uniq(D.CITIES.concat(D.EXTRA_CITIES || [])).filter(c => cities.indexOf(c) < 0));
+    mascots.push.apply(mascots, (D.EXTRA_MASCOTS || []).filter(m => mascots.indexOf(m) < 0));
     // the very first season leans a little easier
     const ease = st.season === 1 && st.div === 15 ? -1.5 : 0;
     // low divisions keep the field within about 30% of the middle, so no Rec League superteam runs the table
@@ -150,8 +158,9 @@
     const climb = st.div === 1 ? Math.min(30, 2.5 * (st.eliteSeasons || 0)) : 0;
     // every new franchise the whole league is stronger: +5% and +1 Overall per franchise (up to +35%)
     const fr = st.prestige || 0, hard = Math.min(1.35, 1 + 0.05 * fr);
-    for (let i = 0; i < 15; i++) {
-      const strength = (lo + (hi - lo) * ((i + 0.5) / 15) + ease + climb) * hard + fr;
+    const nAI = leagueSize() - 1;
+    for (let i = 0; i < nAI; i++) {
+      const strength = (lo + (hi - lo) * ((i + 0.5) / nAI) + ease + climb) * hard + fr;
       const city = cities.splice(M.ri(0, cities.length - 1), 1)[0] || 'Harbor';
       const mas = mascots.splice(M.ri(0, mascots.length - 1), 1)[0] || 'Club';
       out.push({
@@ -184,7 +193,7 @@
     st.standings = [{ ai: false, id: 'me', name: st.team.city + ' ' + st.team.name, abbr: st.team.abbr, w: 0, l: 0, otl: 0, gf: 0, ga: 0 }].concat(ai);
     st.badges = null; assignBadges();
     st.schedule = [];
-    for (let i = 0; i < d.games; i++) st.schedule.push(ai[i % 15].id);
+    for (let i = 0; i < d.games; i++) st.schedule.push(ai[i % ai.length].id);
     shuffle(st.schedule);
     st.gameIndex = 0; st.phase = 'season'; st.playoff = null; st.streak = 0; st.shardBuys = 0;
     st.team.roster.forEach(p => { p.season = M.blankLine(p.pos === 'G'); p.startOvr = M.overall(p); });
@@ -389,14 +398,14 @@
   function enterPlayoffs() {
     const table = sorted();
     const seed = table.findIndex(t => t.id === 'me');
-    if (seed >= 8) {
+    if (seed >= poTeams()) {
       st.phase = 'missed';
       toast('Finished ' + ord(seed + 1) + ' — missed the playoffs', 'loss');
       endSeason(false);
       emit('missed', { seed: seed + 1 });
     } else {
       st.phase = 'playoffs';
-      const seeds = table.slice(0, 8).map(t => t.id);
+      const seeds = table.slice(0, poTeams()).map(t => t.id);
       st.playoff = { round: 0, w: 0, l: 0, opp: null, log: [], seeds, alive: seeds.slice(), mySeed: seed + 1, pts: {}, gsv: {} };
       nextOpponent();
       toast('Playoffs! You are the ' + ord(seed + 1) + ' seed', 'promo');
@@ -406,7 +415,7 @@
   }
   function aliveInSeedOrder() {
     const po = st.playoff;
-    if (!po.seeds) { po.seeds = sorted().slice(0, 8).map(t => t.id); if (po.seeds.indexOf('me') < 0) po.seeds[7] = 'me'; }
+    if (!po.seeds) { const n = poTeams(); po.seeds = sorted().slice(0, n).map(t => t.id); if (po.seeds.indexOf('me') < 0) po.seeds[n - 1] = 'me'; }
     if (!po.alive) po.alive = po.seeds.slice();
     return po.seeds.filter(id => po.alive.indexOf(id) >= 0);
   }
@@ -459,7 +468,7 @@
     const seriesDone = po.w >= need || po.l >= need, advanced = po.w >= need;
     const out = { win, gf: res.a.goals, ga: res.b.goals, ot: res.ot, seriesDone, advanced, round: po.round };
     if (seriesDone && advanced) {
-      if (po.round === 2) { champion(); out.champion = true; }
+      if (po.round >= Math.log2(po.seeds.length) - 1) { champion(); out.champion = true; }
       else { resolveOtherSeries(); po.round++; nextOpponent(); offerPick('Round ' + po.round + ' won', 1 + po.round); }
     } else if (seriesDone) { endSeason(false); out.eliminated = true; }
     save();
@@ -486,6 +495,11 @@
 
   function champion() {
     st.totals.cups++;
+    // franchise achievement checks: a world roster, or a one-country lineup
+    st.life = st.life || {};
+    if (new Set(st.team.roster.map(p => p.nat)).size >= 20) st.life.worldTitle = 1;
+    const dressed = lineupIds().map(byId).filter(Boolean);
+    if (dressed.length && dressed.every(p => p.nat === dressed[0].nat)) st.life.homeTitle = 1;
     if (st.div === 1) st.eliteTitles = (st.eliteTitles || 0) + 1;
     toast('🏆 ' + st.team.name + ' win the ' + div().n + ' championship!', 'cup');
     championshipRewards();
@@ -677,9 +691,13 @@
     save(); emit('roster'); return true;
   }
   // the $0.99 Legend upgrade: one Epic player you love becomes Legendary (demo build: no real charge)
+  // Legend upgrade: spend Legend tokens (sold 5 for $0.99 in the demo; one also comes from each weekly tap goal)
+  const LEGEND_COST = 5;
+  function buyTokens() { st.legendTokens = (st.legendTokens || 0) + 5; toast('+5 Legend tokens', 'gold'); save(); return true; }
   function buyLegend(playerId) {
     const p = byId(playerId);
-    if (!p || p.rarity !== 'epic') return false;
+    if (!p || p.rarity !== 'epic' || (st.legendTokens || 0) < LEGEND_COST) return false;
+    st.legendTokens -= LEGEND_COST;
     p.rarity = 'legendary'; st.legendBuys = (st.legendBuys || 0) + 1;
     toast(p.name + ' is now Legendary. His strengths can reach 99 (weaker skills a little lower, by type) and a second trait slot is open.', 'gold');
     save(); emit('roster'); return true;
@@ -1190,10 +1208,17 @@
     st.fa = [];
     const ls = lineupIds().map(byId).filter(Boolean), avgL = ls.reduce((s, q) => s + M.overall(q), 0) / Math.max(1, ls.length);
     const avgT = ls.reduce((s, q) => s + M.trainedOverall(q), 0) / Math.max(1, ls.length), d = div();
+    const tgs = [], seen = {};
+    const pool = faTargets().sort(() => M.rand() - 0.5).concat([
+      { pos: 'G', why: 'A backup goalie to share the load' },
+      { pos: M.pick(['LW', 'C', 'RW']), why: 'Forward depth for injuries and line changes' },
+      { pos: 'D', why: 'Depth on the blue line' }
+    ]);
+    pool.forEach(t => { const key = t.why.replace(/Line d|Pair d/, 'unit'); if (tgs.length < 3 && !seen[key] && !seen[t.pos + t.why]) { seen[key] = 1; seen[t.pos + t.why] = 1; tgs.push(t); } });
     for (let n = 0; n < 3; n++) {
       const ri = Math.min(3, M.weightedIndex(w.slice(0, 3).concat([w[3] * 0.4])));
-      // two in three are scouted for your team: a weak spot, a chemistry fix or your country core
-      const tg = M.rand() < 0.65 ? M.pick(faTargets()) : null;
+      // each of the three is scouted for a different reason: a thin position, a chemistry fix, your country core, depth
+      const tg = tgs[n] || null;
       const pos = tg ? tg.pos : M.pick(['LW', 'C', 'RW', 'D', 'D', 'G']);
       const target = M.clamp(Math.round(avgT - M.ri(3, 8) + ri), Math.max(3, d.lo - 4), d.hi);
       const p = M.makePlayer(pos, D.RARITY[ri].k, Math.min(D.RARITY[ri].cap - 2, target), tg ? tg.nat : null, { avoid, type: tg ? tg.type : undefined });
@@ -1350,6 +1375,10 @@
     st.div = 15; st.promos = 0; st.eliteSeasons = 0;
     st.pucks = 0; st.tape = 0; st.shards = { F: 0, D: 0, G: 0 }; st.gear = hof; st.picks = {}; st.xfs = traits;
     st.fac = {}; applyFac(); st.pending = null; st.pickQueue = [];
+    // everything scouted, stocked or earned for the old league goes too: free agents, the gear shop, an open draft board,
+    // rescout tokens and the ad timer, boosts on the shelf and running, the seen-picks counter
+    st.fa = []; st.faAt = 0; st.faAdAt = 0; st.faTokens = 0; st.shop = []; st.shopAt = 0; st.board = null;
+    st.boosts = {}; st.active = []; st.picksSeen = 0; st.streak = 0;
     // a new franchise starts clean: coach skills, achievements and the Elite-title requirement all reset;
     // lifetime totals are kept for the franchise achievements
     st.coach.bench = 0; st.coach.skills = 0; st.coach.video = 0;
@@ -1374,14 +1403,21 @@
     { k: 'games', n: 'Iron Man', d: 'One player reaches career games played', tiers: [1000, 2000, 4000] },
     { k: 'combo', n: 'Golden Touch', d: 'Reach a tap combo', tiers: [10000, 25000] },
     { k: 'taps', n: 'Iron Fingers', d: 'Total taps, every franchise', tiers: [250000, 1000000, 5000000] },
-    { k: 'twins', n: 'Winning Culture', d: 'Team wins, every franchise', tiers: [1000, 2500, 5000] }
+    { k: 'twins', n: 'Winning Culture', d: 'Team wins, every franchise', tiers: [1000, 2500, 5000] },
+    { k: 'euro', n: 'European Star', d: 'A European player reaches career points', tiers: [2500] },
+    { k: 'world', n: 'United Nations', d: 'Win a title with players from 20 countries on the roster', tiers: [1] },
+    { k: 'home', n: 'Homegrown', d: 'Win a title with every dressed player from one country', tiers: [1] },
+    { k: 'line', n: 'Lifers', d: 'A line plays games together', tiers: [2000] }
   ];
+  const EURO = ['SE', 'RU', 'FI', 'CZ', 'CH', 'SK', 'DE', 'DK', 'LV', 'AT', 'NO', 'SI', 'FR', 'BY', 'UA', 'LT', 'PL', 'IT', 'GB', 'NL', 'HR', 'EE', 'HU', 'RO', 'RS', 'IS', 'ES', 'BE', 'IE'];
   function careerBest() {
     const life = st.life = st.life || {};
     st.team.roster.forEach(p => {
       if (p.pos !== 'G') life.maxPts = Math.max(life.maxPts || 0, p.career.p || 0);
+      if (p.pos !== 'G' && EURO.indexOf(p.nat) >= 0) life.maxEuroPts = Math.max(life.maxEuroPts || 0, p.career.p || 0);
       life.maxGp = Math.max(life.maxGp || 0, p.career.gp || 0);
     });
+    st.team.lineup.lines.forEach(ids => { life.maxLineGp = Math.max(life.maxLineGp || 0, Math.round(M.avgGames(ids, st.team.chem || {}))); });
     return life;
   }
   function fachValue(k) {
@@ -1391,6 +1427,10 @@
     if (k === 'games') return life.maxGp || 0;
     if (k === 'combo') return st.bestCombo || 0;
     if (k === 'taps') return st.tapsAll || 0;
+    if (k === 'euro') return life.maxEuroPts || 0;
+    if (k === 'world') return life.worldTitle || 0;
+    if (k === 'home') return life.homeTitle || 0;
+    if (k === 'line') return life.maxLineGp || 0;
     if (k === 'twins') return ((st.life && st.life.wins) || 0) + (st.totals.wins || 0);
     return 0;
   }
@@ -1470,10 +1510,10 @@
     st.tapsAll = (st.tapsAll || 0) + 1;
     const w = tapWeek(); w.n++;
     if (!w.done && w.n >= WEEK_GOAL) {
-      w.done = true; addPick(2);
+      w.done = true; addPick(2); st.legendTokens = (st.legendTokens || 0) + 1;
       const s = 30 + tierIdx() * 10; st.shards.F += s; st.shards.D += s; st.shards.G += Math.round(s / 2);
       const ri = Math.min(4, Math.max(2, D.PROMO_CAP[tier()] + 1)), g = smartGear(D.RARITY[ri].k); st.gear.push(g);
-      toast('Weekly goal: ' + fmt(WEEK_GOAL) + ' taps! A 2nd-round pick, ' + s + ' F and D shards, ' + Math.round(s / 2) + ' G shards and ' + M.gearName(g), 'gold');
+      toast('Weekly goal: ' + fmt(WEEK_GOAL) + ' taps! A Legend token, a 2nd-round pick, ' + s + ' F and D shards, ' + Math.round(s / 2) + ' G shards and ' + M.gearName(g), 'gold');
       save();
     }
   }
@@ -1692,11 +1732,11 @@
   }
 
   G.ST = {
-    on, emit, get, div, divRef, tier, tierIdx, franchiseNo, payout, newGame, startSeason, beginNextSeason,
+    on, emit, get, div, divRef, tier, tierIdx, leagueSize, poTeams, poRounds, roundNames, franchiseNo, payout, newGame, startSeason, beginNextSeason,
     prepareGame, commitGame, playNextGame, enterPlayoffs, preparePlayoff, commitPlayoff, playPlayoffGame,
     sorted, teamById, offerPick, takePick, rerollPick, takeChampionPack,
     spendUpgrade, promote, promoCost, canPromote, promoCap, levelGear, gearLevelCost, equip, unequip, salvage, salvageAll, tradeUpGear, autoEquip, setXF,
-    upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, BREAK_MAX, shardPrice, buyShards,
+    upgradeCoach, coachCost, setStyle, offlineCap, offlineHours, addPucks, breakCost, canBreak, breakthrough, buyLegend, buyTokens, LEGEND_COST, BREAK_MAX, shardPrice, buyShards,
     teamOvr, clickValue, passiveRate, tickPassive, activeBoosts, buyBoost, activateBoost, boostCost,
     fuseGroups, fuse, fuseCost, checkDaily, claimDaily, dailyState, DAILY, countTap, tapDay, tapWeek, WEEK_GOAL, TAP_GOALS, TAP_DROP_EVERY, noteCombo, alerts, setDemo, applySpeed, devGrant, claimAch,
     AWARDS, ROUND_ODDS, TRADES, pickOdds, maxRarity, addPick, pickCount, draft, rescout, scoutInfo, openBoard, rescoutBoard, chooseBoard, autoDraft, scoutPick, tradePlayers, combinePicks, tradeValue, tradeQuote, tradeIn, pickValue,

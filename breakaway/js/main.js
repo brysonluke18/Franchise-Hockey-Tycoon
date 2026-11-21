@@ -298,9 +298,14 @@
       else { x.dataset.sure = '1'; x.textContent = 'Confirm $0.99 (demo)'; }
       return;
     }
+    if ((x = el('[data-tokbuy]'))) {
+      if (x.dataset.sure) { ST.buyTokens(); const pid = $('#sheet') && $('#sheet').dataset.pid; if (pid && UI.modalOpen()) UI.playerSheet(pid); else UI.render(); }
+      else { x.dataset.sure = '1'; x.textContent = 'Confirm $0.99 (demo)'; }
+      return;
+    }
     if ((x = el('[data-legbuy]'))) {
       if (x.dataset.sure) { if (ST.buyLegend(x.dataset.legbuy)) { UI.playerSheet(x.dataset.legbuy); UI.render(); } }
-      else { x.dataset.sure = '1'; x.textContent = 'Tap to confirm $0.99 (demo)'; }
+      else { x.dataset.sure = '1'; x.textContent = 'Tap again to spend ' + ST.LEGEND_COST + ' tokens'; }
       return;
     }
     if ((x = el('[data-break]'))) { if (ST.breakthrough(x.dataset.break)) UI.playerSheet(x.dataset.break); return; }

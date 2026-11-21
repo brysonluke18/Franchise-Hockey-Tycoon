@@ -41,7 +41,7 @@
         '<div>' + ic('season', 22) + '<span>The season plays itself, one game every ' + D.TUNING.gameIntervalSec + 's.</span></div>' +
         '<div>' + ic('practice', 22) + '<span>Tap on Train for pucks. A better team earns more per tap and while idle.</span></div>' +
         '<div>' + ic('dumbbell', 22) + '<span>Spend pucks on players. Their next game uses it.</span></div>' +
-        '<div>' + ic('trophy', 22) + '<span>Top 8 make the playoffs. Win it all to move up.</span></div></div></section>';
+        '<div>' + ic('trophy', 22) + '<span>Top 8 make the playoffs (16 in Division 1). Win it all to move up.</span></div></div></section>';
     }
     h += '<section class="club" style="--tc:' + t.c1 + '"><div class="club-jersey">' + jerseySVG(t, 92) + '</div>' +
       '<div class="club-main"><div class="eyebrow">Division ' + st.div + ' · ' + esc(ST.div().n) + '</div>' +
@@ -170,7 +170,7 @@
   // daily practice goals under the clicker
   function weekHTML() {
     const w = ST.tapWeek(), G = ST.WEEK_GOAL;
-    return '<div class="cg-h"><b>' + (w.done ? 'Weekly goal done · resets Monday' : 'Weekly goal: ' + fmt(w.n) + ' / ' + fmt(G) + ' taps') + '</b><i>' + (w.done ? 'nice work' : '2nd-round pick, shards and gear') + '</i></div><div class="cg-bar"><i style="width:' + Math.min(100, 100 * w.n / G).toFixed(1) + '%"></i></div>';
+    return '<div class="cg-h"><b>' + (w.done ? 'Weekly goal done · resets Monday' : 'Weekly goal: ' + fmt(w.n) + ' / ' + fmt(G) + ' taps') + '</b><i>' + (w.done ? 'nice work' : 'a Legend token, a 2nd-round pick, shards and gear') + '</i></div><div class="cg-bar"><i style="width:' + Math.min(100, 100 * w.n / G).toFixed(1) + '%"></i></div>';
   }
   function goalHTML() {
     const t = ST.tapDay(), G = ST.TAP_GOALS, next = G[t.got], prev = t.got ? G[t.got - 1].n : 0;
@@ -249,7 +249,7 @@
       const done = st.gameIndex, total = st.schedule.length, me = ST.teamById('me');
       const seed = ST.sorted().findIndex(t => t.id === 'me') + 1;
       h += '<section class="panel"><div class="ss-top"><div><div class="eyebrow">Regular season · ' + esc(d.n) + '</div>' +
-        '<div class="ss-rec"><b>' + me.w + '-' + me.l + '-' + me.otl + '</b><span class="pill ' + (seed <= 8 ? 'good' : 'bad') + '">' + ST.ord(seed) + (seed <= 8 ? ' · in' : ' · out') + '</span></div></div>' +
+        '<div class="ss-rec"><b>' + me.w + '-' + me.l + '-' + me.otl + '</b><span class="pill ' + (seed <= ST.poTeams() ? 'good' : 'bad') + '">' + ST.ord(seed) + (seed <= ST.poTeams() ? ' · in' : ' · out') + '</span></div></div>' +
         '<div class="ss-prog"><b>' + done + '<small>/' + total + '</small></b><i>games</i></div></div>' +
         livePanel('Game ' + (done + 1)) +
         '<div class="tick"><span>Next result</span><span class="tickbar"><i id="tickBar"></i></span><span id="tickTxt" class="num"></span></div>' +
@@ -271,9 +271,9 @@
     if (feed.length) h += sh('Results') + '<div class="feed">' + feed.slice(0, 20).map(f => '<span class="fchip ' + (f.win ? 'w' : 'l') + '"><b>' + (f.win ? 'W' : 'L') + '</b>' + f.gf + '–' + f.ga + (f.ot ? '<i>' + (f.so ? 'SO' : 'OT') + '</i>' : '') + '<em>' + esc(f.oppAbbr) + '</em></span>').join('') + '</div>';
 
     const table = ST.sorted();
-    h += sh('Standings', '<span class="sec-note">Top 8 make the playoffs' + (st.div === 1 && st.eliteSeasons ? ' · rivals +' + Math.min(30, 2.5 * st.eliteSeasons) + ' after ' + st.eliteSeasons + ' Elite season' + (st.eliteSeasons > 1 ? 's' : '') : '') + '</span>') +
+    h += sh('Standings', '<span class="sec-note">Top ' + ST.poTeams() + ' make the playoffs' + (st.div === 1 && st.eliteSeasons ? ' · rivals +' + Math.min(30, 2.5 * st.eliteSeasons) + ' after ' + st.eliteSeasons + ' Elite season' + (st.eliteSeasons > 1 ? 's' : '') : '') + '</span>') +
       '<section class="panel flush"><div class="scroll-x"><table class="stand"><thead><tr><th>#</th><th>Team</th><th>W</th><th>L</th><th>OT</th><th>PTS</th><th>DIFF</th></tr></thead><tbody>' +
-      table.map((t, i) => (i === 8 ? '<tr class="cut"><td colspan="7"><span>Playoff line</span></td></tr>' : '') +
+      table.map((t, i) => (i === ST.poTeams() ? '<tr class="cut"><td colspan="7"><span>Playoff line</span></td></tr>' : '') +
         '<tr class="' + (t.id === 'me' ? 'me' : '') + '"><td>' + (i + 1) + '</td><td><span class="tn">' + badgeFor(t, 20) + '<span>' + esc(t.name) + '</span></span></td>' +
         '<td>' + t.w + '</td><td>' + t.l + '</td><td>' + t.otl + '</td><td><b>' + (t.w * 2 + t.otl) + '</b></td>' +
         '<td class="' + (t.gf - t.ga > 0 ? 'pos' : t.gf - t.ga < 0 ? 'neg' : '') + '">' + (t.gf - t.ga > 0 ? '+' : '') + (t.gf - t.ga) + '</td></tr>').join('') +
@@ -301,7 +301,7 @@
 
   function playoffPanel() {
     const st = ST.get(), po = st.playoff, d = ST.div();
-    const names = ['Quarterfinal', 'Semifinal', 'Final'];
+    const names = ST.roundNames();
     let h = '<section class="panel po"><div class="eyebrow">Playoffs · best of ' + d.series + '</div>';
     h += '<div class="bracket">' + names.map((n, i) => '<div class="bk' + (i < po.round ? ' won' : i === po.round ? ' now' : '') + '">' + (i < po.round ? ic('check', 14) : '') + n + '</div>').join('') + '</div>';
     const opp = po.opp || { name: '—', abbr: '—' };
@@ -479,6 +479,8 @@
     h += '<div class="fa-rs"><span>' + ic('swap', 14) + ' New free agents: ' + (rl ? 'ad rescout in ' + Math.ceil(rl / 60e3) + ' min' : 'ad rescout ready') + (tk ? ' · ' + tk + ' token' + (tk > 1 ? 's' : '') : '') + '</span>' +
       '<button class="btn sm" data-farescout="ad"' + (rl ? ' disabled' : '') + '>Watch ad</button>' + (tk ? '<button class="btn sm primary" data-farescout="token">Use token</button>' : '') + '</div>';
 
+    h += '<div class="fa-rs"><span>' + ic('star', 14) + ' Legend tokens: ' + (st.legendTokens || 0) + ' · ' + ST.LEGEND_COST + ' make an Epic player Legendary</span>' +
+      '<button class="btn sm gold" data-tokbuy="1">Buy 5 · $0.99</button></div>';
     const cap = ST.maxRarity();
     h += sh(ic('token', 18) + ' Draft picks', ST.pickCount() > 1 ? '<button class="btn sm primary" data-act="draftall">' + ic('token', 14) + ' Auto-draft ' + ST.pickCount() + '</button>' : '<span class="sec-note">1st-round Legendary chance: ' + ST.pickOdds(1)[4] + '%</span>');
     if (st.board) h += '<section class="panel tradein"><div><b>Your ' + ST.ord(st.board.round) + '-round board is open</b><i>Five prospects are waiting. Pick one before drafting again.</i></div><button class="btn primary sm" data-act="board">Open board</button></section>';
@@ -673,7 +675,8 @@
       }
       h += '<div class="note">Epic is as far as promotion goes. Breakthroughs let a player you love keep climbing. <b style="color:' + D.RARITY[4].color + '">Legendary</b> players come from the draft, free agency, title packs and the three-for-one trade.</div>' +
         '<div class="legbuy"><div><b>Legend upgrade</b><i>Make ' + esc(last(p)) + ' Legendary right now: Legendary caps (strengths up to 99, weaker skills lower by type) and two trait slots.</i></div>' +
-        '<button class="btn sm gold" data-legbuy="' + p.id + '">$0.99</button></div></div>';
+        '<div class="legbtns"><button class="btn sm gold" data-legbuy="' + p.id + '"' + ((st.legendTokens || 0) >= ST.LEGEND_COST ? '' : ' disabled') + '>Use ' + ST.LEGEND_COST + ' tokens</button>' +
+        '<button class="btn sm" data-tokbuy="1">Buy 5 · $0.99</button><span class="legtok">You have ' + (st.legendTokens || 0) + ' Legend token' + ((st.legendTokens || 0) === 1 ? '' : 's') + '</span></div></div></div>';
     }
     else if (next) h += '<div class="note">Division ' + st.div + ' allows promotions up to ' + D.RARITY[ST.promoCap()].n + '. Move up a division to go further.</div>';
     else h += '<div class="note">Top tier. Train to 99 and gear past it to reach <b style="color:var(--gold)">HoF</b>.</div>';

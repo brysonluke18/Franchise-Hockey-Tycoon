@@ -147,6 +147,9 @@
   const CITIES = ['Kelowna', 'Brandon', 'Moncton', 'Thunder Bay', 'Saskatoon', 'Red Deer', 'Nanaimo', 'Sudbury',
     'Duluth', 'Spokane', 'Fargo', 'Bangor', 'Toledo', 'Wichita', 'Boise', 'Albany', 'Peoria', 'Tulsa',
     'Lahti', 'Malmo', 'Zlin', 'Davos', 'Graz', 'Odense'];
+  // extra names so a 32-team Division 1 never repeats a city or a nickname
+  const EXTRA_CITIES = ['Riga', 'Tampere', 'Malmo', 'Zurich', 'Pilsen', 'Kosice', 'Lugano', 'Turku', 'Rochester', 'Hershey', 'Providence', 'Milwaukee', 'Hamilton', 'Laval', 'Regina', 'Lethbridge'];
+  const EXTRA_MASCOTS = ['Storm', 'Blades', 'Comets', 'Phantoms', 'Monarchs', 'Admirals', 'Rangers', 'Generals', 'Huskies', 'Lynx', 'Stallions', 'Bulldogs', 'Chiefs', 'Mustangs', 'Nordiques', 'Voyageurs'];
   const MASCOTS = ['Wolves', 'Ironmen', 'Otters', 'Thunder', 'Kings', 'Ravens', 'Bisons', 'Rockets', 'Mariners',
     'Pilots', 'Bruins', 'Cyclones', 'Steelheads', 'Foxes', 'Comets', 'Hawks', 'Knights', 'Lumberjacks',
     'Sabres', 'Grizzlies', 'Mustangs', 'Pioneers', 'Blizzard', 'Titans'];
@@ -204,16 +207,16 @@
   // ---------------------------------------------------------------- gear
   const GEAR_SLOTS = {
     skater: [
-      { k: 'stick', n: 'Stick', p: 'shooting', s: 'passing' },
-      { k: 'skates', n: 'Skates', p: 'skating', s: 'defense' },
+      { k: 'helmet', n: 'Helmet', p: 'iq', s: 'defense' },
       { k: 'gloves', n: 'Gloves', p: 'hands', s: 'grit' },
-      { k: 'helmet', n: 'Helmet', p: 'iq', s: 'defense' }
+      { k: 'stick', n: 'Stick', p: 'shooting', s: 'passing' },
+      { k: 'skates', n: 'Skates', p: 'skating', s: 'defense' }
     ],
     goalie: [
-      { k: 'stick', n: 'Stick', p: 'puckhandling', s: 'rebound' },
-      { k: 'pads', n: 'Pads', p: 'fiveHole', s: 'positioning' },
       { k: 'glove', n: 'Glove', p: 'gloveHigh', s: 'gloveLow' },
-      { k: 'blocker', n: 'Blocker', p: 'blockerHigh', s: 'blockerLow' }
+      { k: 'blocker', n: 'Blocker', p: 'blockerHigh', s: 'blockerLow' },
+      { k: 'stick', n: 'Stick', p: 'puckhandling', s: 'rebound' },
+      { k: 'pads', n: 'Pads', p: 'fiveHole', s: 'positioning' }
     ]
   };
   // a full Legendary set adds roughly +8 to +10 Overall to a maxed player
@@ -242,16 +245,23 @@
   // defensive work), hits, pim (penalties); po_goal applies in the playoffs only. Goalies: sv and po_sv add to save %.
   // Pairs in the same `x` group never go together (a Natural Scorer is never Snakebitten).
   const TENDENCIES = {
-    shooter: { n: 'Shoots first', good: true, x: 'sp', d: 'Takes a lot more shots.', fx: { shot: 1.35, goal: 1.04 } },
-    passer: { n: 'Pass-first', good: true, x: 'sp2', d: 'Looks for teammates: more assists, fewer shots.', fx: { ast: 1.35, shot: 0.8 } },
-    scorer: { n: 'Natural scorer', good: true, x: 'sc', d: 'Finishes his chances: a bigger share of the goals.', fx: { goal: 1.18 } },
-    snakebit: { n: 'Snakebitten', good: false, x: 'sc', d: 'Can’t buy a goal: a smaller share of the goals.', fx: { goal: 0.85 } },
-    backcheck: { n: 'Backchecker', good: true, x: 'bk', d: 'Hustles back: his line defends better.', fx: { back: 1.15 } },
-    lazy: { n: 'Lazy backchecker', good: false, x: 'bk', d: 'Floats in the neutral zone: his line defends worse.', fx: { back: 0.85 } },
-    hitter: { n: 'Big hitter', good: true, x: 'ht', d: 'Finishes every check: lots more hits.', fx: { hits: 1.6 } },
-    soft: { n: 'Avoids contact', good: false, x: 'ht', d: 'Shies away from the boards: fewer hits.', fx: { hits: 0.5 } },
-    disciplined: { n: 'Disciplined', good: true, x: 'pm', d: 'Rarely takes a penalty.', fx: { pim: 0.55 } },
-    hothead: { n: 'Hothead', good: false, x: 'pm', d: 'Takes bad penalties.', fx: { pim: 1.7 } },
+    shooter: { n: 'Shoots first', good: true, x: 'sp', w: { sniper: 3, power: 2, ofd: 2, playmaker: 0.4, enforcer: 0.3, dfd: 0.3 }, d: 'Takes a lot more shots.', fx: { shot: 1.35, goal: 1.04 } },
+    passer: { n: 'Pass-first', good: true, x: 'sp2', w: { playmaker: 3, twd: 1.5, ofd: 1.5, sniper: 0.4, enforcer: 0.3 }, d: 'Looks for teammates: more assists, fewer shots.', fx: { ast: 1.35, shot: 0.8 } },
+    scorer: { n: 'Natural scorer', good: true, x: 'sc', w: { sniper: 3, power: 1.5, enforcer: 0.2, dfd: 0.2 }, d: 'Finishes his chances: a bigger share of the goals.', fx: { goal: 1.18 } },
+    snakebit: { n: 'Snakebitten', good: false, x: 'sc', w: { enforcer: 2, dfd: 2, twoway: 1.5, sniper: 0.4 }, d: 'Can’t buy a goal: a smaller share of the goals.', fx: { goal: 0.85 } },
+    backcheck: { n: 'Backchecker', good: true, x: 'bk', w: { twoway: 3, dfd: 2, twd: 2, sniper: 0.4, ofd: 0.5 }, d: 'Hustles back: his line defends better.', fx: { back: 1.15 } },
+    lazy: { n: 'Lazy backchecker', good: false, x: 'bk', w: { sniper: 1.5, ofd: 1.5, twoway: 0.2, dfd: 0.2 }, d: 'Floats in the neutral zone: his line defends worse.', fx: { back: 0.85 } },
+    hitter: { n: 'Big hitter', good: true, x: 'ht', w: { enforcer: 3, power: 3, dfd: 2, sniper: 0.3, playmaker: 0.3 }, d: 'Finishes every check: lots more hits.', fx: { hits: 1.6 } },
+    soft: { n: 'Avoids contact', good: false, x: 'ht', w: { playmaker: 2, sniper: 2, ofd: 1.5, enforcer: 0.1, power: 0.2 }, d: 'Shies away from the boards: fewer hits.', fx: { hits: 0.5 } },
+    disciplined: { n: 'Disciplined', good: true, x: 'pm', w: { twoway: 2, twd: 2, playmaker: 1.5, enforcer: 0.3 }, d: 'Rarely takes a penalty.', fx: { pim: 0.55 } },
+    hothead: { n: 'Hothead', good: false, x: 'pm', w: { enforcer: 3, power: 2, sniper: 0.4, playmaker: 0.4 }, d: 'Takes bad penalties.', fx: { pim: 1.7 } },
+    netfront: { n: 'Net-front presence', good: true, x: 'nf', w: { power: 3, enforcer: 2, sniper: 0.5, ofd: 0.3, dfd: 0.3 }, d: 'Parks in front of the net: more garbage goals and bumps.', fx: { goal: 1.1, hits: 1.2 } },
+    speedster: { n: 'Breakaway speed', good: true, x: 'sd', w: { sniper: 2, twoway: 1.5, ofd: 1.5, playmaker: 1.5, enforcer: 0.3, dfd: 0.5 }, d: 'Beats defenders wide: more shots and a few more goals.', fx: { shot: 1.15, goal: 1.06 } },
+    blocker: { n: 'Shot blocker', good: true, x: 'bl', w: { dfd: 3, twd: 2, twoway: 2, sniper: 0.2, playmaker: 0.3 }, d: 'Lays down in front of shots: lots more blocks.', fx: { blk: 1.7 } },
+    selfish: { n: 'Puck hog', good: false, x: 'sp2', w: { sniper: 2, ofd: 1, playmaker: 0.2, twoway: 0.5 }, d: 'Shoots when he should pass: fewer assists.', fx: { ast: 0.7, shot: 1.2 } },
+    turnovers: { n: 'Turnover prone', good: false, x: 'to', w: { ofd: 1.5, enforcer: 1.5, playmaker: 1, twoway: 0.4, dfd: 0.5 }, d: 'Coughs up the puck: his line defends and scores a little worse.', fx: { back: 0.93, goal: 0.95 } },
+    leader: { n: 'Leader', good: true, x: 'ld', d: 'Pulls his unit together: +2% chemistry for his line or pair.', fx: { chem: 0.02 } },
+    grinder: { n: 'Grinder', good: true, x: 'gr', w: { power: 2, enforcer: 2, twoway: 2, sniper: 0.3, playmaker: 0.5 }, d: 'Wins the board battles: more hits and better defensive work.', fx: { hits: 1.3, back: 1.08 } },
     clutch: { n: 'Clutch', good: true, x: 'cl', d: 'Scores more in the playoffs.', fx: { po_goal: 1.25 } },
     choker: { n: 'Disappears in the playoffs', good: false, x: 'cl', d: 'Scores less when it matters.', fx: { po_goal: 0.8 } },
     biggame: { n: 'Big-game goalie', good: true, x: 'gbg', d: 'Save % +.006 in the playoffs.', g: true, fx: { po_sv: 0.006 } },
@@ -340,7 +350,7 @@
   };
 
   G.DATA = {
-    NATIONS, NAMES, CITY_BY_NAT, CITIES, MASCOTS, RARITY, RIDX, GOLD, FACILITIES, GOALIE_SHARD_MULT, PROMO_CAP,
+    NATIONS, NAMES, CITY_BY_NAT, CITIES, MASCOTS, EXTRA_CITIES, EXTRA_MASCOTS, RARITY, RIDX, GOLD, FACILITIES, GOALIE_SHARD_MULT, PROMO_CAP,
     SKATER_ATTRS, GOALIE_ATTRS, ATTR_LABEL, OVR_W, TYPES, TYPE_ODDS,
     GEAR_SLOTS, GEAR_BANDS, XFACTORS, BOOSTS, DIVISIONS, TENDENCIES, CRESTS, PATTERNS,
     ACHIEVEMENTS, TROPHY_BONUS, TUNING

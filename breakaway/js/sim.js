@@ -242,7 +242,7 @@
     const nh = M.ri(10, 22);
     for (let i = 0; i < nh; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'grit')), 1.2) * T(x).hits * M.tfx(x, 'hits')))].id).hits++;
     const nb = M.ri(6, 15);
-    for (let i = 0; i < nb; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'defense')), 1.2) * T(x).blk * (x.pos === 'D' ? 1.6 : 1)))].id).blk++;
+    for (let i = 0; i < nb; i++) row(st, sk[M.weightedIndex(sk.map(x => Math.pow(Math.max(1, M.eff(x, 'defense')), 1.2) * T(x).blk * M.tfx(x, 'blk') * (x.pos === 'D' ? 1.6 : 1)))].id).blk++;
     sk.forEach(p => {
       // minors come from the power-play model; fights (five minutes, no power play) stay here
       const fight = p.type === 'enforcer' ? 0.16 : p.type === 'power' ? 0.04 : 0.01;

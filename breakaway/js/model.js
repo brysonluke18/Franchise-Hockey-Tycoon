@@ -86,11 +86,23 @@
   // breakthroughs (p.capB) lift every cap of an Epic player, never past 99
   // Legendary skaters still follow their type: the base is 95 Overall, so strengths reach 99 but a
   // Sniper's grit tops out around 79. Breakthroughs raise the base the same way, never past 95.
-  const LEG_BASE = 95;
+  // Legendary base 95 shaped by type; six breakthroughs (+18) walk an Epic's base up to that same Legendary base.
+  const LEG_BASE = 95, BREAK_FULL = 18, legCache = {};
+  // Overall is scaled per position and type so a fully trained Legendary reads exactly 99, while his weak
+  // skills still stop short (a Two-Way winger keeps his modest shot). Goalies need no scaling.
+  function legBase() { return LEG_BASE; }
+  function ovrK(p) {
+    if (p.pos === 'G') return 1;
+    const k = p.pos + '|' + p.type; if (legCache[k]) return legCache[k];
+    const w = D.OVR_W[p.pos] || D.OVR_W.LW, t = typeOf(p), sc = scaleFor(p);
+    let s = 0; for (const a in w) s += w[a] * Math.min(99, Math.round(LEG_BASE * capShape(t, a) * sc));
+    return (legCache[k] = 99 / s);
+  }
   function attrCap(p, key) {
     const cap = capOf(p), b = p.capB || 0;
-    if (p.pos === 'G') return p.rarity === 'legendary' ? 99 : Math.min(99, cap + b);
-    const base = p.rarity === 'legendary' ? LEG_BASE : Math.min(LEG_BASE, cap + b);
+    if (p.pos === 'G') return p.rarity === 'legendary' ? 99 : Math.min(99, Math.round(b ? cap + Math.min(1, b / BREAK_FULL) * (99 - cap) : cap));
+    const LB = legBase(p);
+    const base = p.rarity === 'legendary' ? LB : b ? cap + Math.min(1, b / BREAK_FULL) * (LB - cap) : Math.min(LB, cap);
     return Math.min(99, Math.round(base * capShape(typeOf(p), key) * scaleFor(p)));
   }
 
@@ -119,6 +131,7 @@
       p.a[k] = clamp(Math.round(v), 1, attrCap(p, k));
     });
     p.tend = rollTend(p);
+    p.tendV = 2;
     Object.assign(p, bodyFor(p, rand));
     if (opts.avoid) opts.avoid[p.name] = 1;
     return p;
@@ -139,7 +152,14 @@
   function rollTend(p, rnd) {
     const r = rnd || rand, pool = Object.keys(D.TENDENCIES).filter(k => !!D.TENDENCIES[k].g === (p.pos === 'G'));
     const out = [], used = {};
-    for (let i = 0; i < 40 && out.length < 3; i++) { const k = pool[Math.floor(r() * pool.length)], t = D.TENDENCIES[k]; if (used[t.x]) continue; used[t.x] = 1; out.push(k); }
+    // weighted by the player's type: Snipers lean Shoots First and Natural Scorer, Enforcers lean Big Hitter and Hothead
+    const wt = k => { const t = D.TENDENCIES[k]; return t.w && t.w[p.type] != null ? t.w[p.type] : 1; };
+    for (let i = 0; i < 60 && out.length < 3; i++) {
+      const free = pool.filter(k => !used[D.TENDENCIES[k].x]); if (!free.length) break;
+      const ws = free.map(wt), tot = ws.reduce((s, x) => s + x, 0); let x = r() * tot, j = 0;
+      while (j < free.length - 1 && x >= ws[j]) { x -= ws[j]; j++; }
+      used[D.TENDENCIES[free[j]].x] = 1; out.push(free[j]);
+    }
     return out;
   }
   // the combined effect of a player's tendencies on one sim weight (multiplied, or summed for save %)
@@ -155,7 +175,7 @@
   }
   // older saves: goalies had four skills and players had no type
   function migratePlayer(p) {
-    if (!p.tend) { let s = 7; for (let i = 0; i < p.id.length; i++) s = (s * 33 + p.id.charCodeAt(i)) >>> 0; p.tend = rollTend(p, () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }); }
+    if (!p.tend || !p.tendV) { p.tendV = 2; let s = 7; for (let i = 0; i < p.id.length; i++) s = (s * 33 + p.id.charCodeAt(i)) >>> 0; p.tend = rollTend(p, () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }); }
     if (!p.ht) { let s = 0; for (let i = 0; i < p.id.length; i++) s = (s * 31 + p.id.charCodeAt(i)) >>> 0; const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; Object.assign(p, bodyFor(p, r)); }
     if (p.pos === 'G' && p.a.reflexes != null) {
       const r = p.a.reflexes, pos = p.a.positioning || r;
@@ -196,8 +216,8 @@
     return v;
   }
   function effAll(p) { const o = {}; (p.pos === 'G' ? D.GOALIE_ATTRS : D.SKATER_ATTRS).forEach(k => { o[k] = eff(p, k); }); return o; }
-  function overall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * eff(p, k); return Math.round(t); }
-  function trainedOverall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * (p.a[k] || 0); return Math.round(t); }
+  function overall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * eff(p, k); return Math.round(t * ovrK(p)); }
+  function trainedOverall(p) { const w = D.OVR_W[p.pos] || D.OVR_W.LW; let t = 0; for (const k in w) t += w[k] * (p.a[k] || 0); return Math.round(t * ovrK(p)); }
   function isGold(p) { return overall(p) > 99; }
   // early points are discounted (about 40% at a rating of 10, full price from 30 up) so the first hours have plenty to buy
   function upgradeCost(value) { const T = D.TUNING, early = Math.max(0.4, Math.min(1, (value + 2) / 32)); return Math.max(1, Math.round(T.costBase * Math.pow(T.costGrowth, value) * early * (T.costMult || 1))); }
@@ -232,6 +252,7 @@
       else if (s === 'ofd+ofd') parts.push({ t: 'two OFDs', v: -0.04 });
       else if (s === 'dfd+dfd') parts.push({ t: 'two DFDs', v: -0.02 });
     }
+    if (ps.length > 1 && ps.some(p => (p.tend || []).indexOf('leader') >= 0)) parts.push({ t: 'leader', v: 0.02 });
     const natSame = nats.length - new Set(nats).size;
     if (ps.length > 1 && natSame && natSame === nats.length - 1) parts.push({ t: 'all ' + nationOf(ps[0]).n, v: 0.05 });
     else if (natSame) parts.push({ t: 'shared country', v: 0.015 });
